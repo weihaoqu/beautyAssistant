@@ -1,0 +1,7 @@
+{
+  "name": "GlowAI - Skin & Hair Health Analyzer",
+  "description": "An AI-powered beauty consultant that analyzes your skin and hair condition from a photo to provide personalized routine and product recommendations.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

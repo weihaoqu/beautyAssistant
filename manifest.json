@@ -1,0 +1,20 @@
+{
+  "short_name": "GlowAI",
+  "name": "GlowAI Beauty Consultant",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/fluency/192/sparkling.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/fluency/512/sparkling.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#fff1f2",
+  "background_color": "#ffffff"
+}
