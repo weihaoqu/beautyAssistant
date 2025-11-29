@@ -186,12 +186,21 @@ export const getSpecificProductRecommendations = async (
               User Context (Skin/Hair Profile): ${userContext}
               Budget Constraint: ${budget}
               
+              Brand Guidance & Budget Tiers:
+              - Luxury/High-End ($100+): La Mer, La Prairie, Helena Rubinstein (HR), SK-II, Sisley, Augustinus Bader.
+              - Premium ($50-$100): Lancôme, Estée Lauder, Shiseido, Aveda (Hair), Kérastase (Hair), Oribe.
+              - Mid-Range ($30-$60): Kiehl's, Clinique, Origins, Clarins, Dr. Jart+, Briogeo.
+              - Budget/Accessible ($10-$30): The Ordinary, CeraVe, La Roche-Posay, Neutrogena, Inkey List.
+              
               Requirements:
               1. Provide 3 tiers: 
                  - Gold (Best Overall/Premium, works best for the profile)
                  - Silver (Best Value/Mid-range)
                  - Bronze (Budget-friendly but effective)
-              2. If the budget is tight, adjust all tiers to fit within or near the budget, but keep the Gold/Silver/Bronze quality distinction.
+              2. Strict Budget Handling:
+                 - If budget is low (e.g. <$30), prioritize 'Budget/Accessible' brands for all tiers or mix with lower-end Mid-Range.
+                 - If budget is high ($100+), feel free to suggest 'Luxury' or 'Premium' brands for Gold/Silver.
+                 - If budget is mid-range ($50), stick to 'Premium' and 'Mid-Range' brands.
               3. Include estimated price.
               4. Include a Google Search link for the product.
               5. Include key ingredients and usage frequency.
@@ -218,6 +227,60 @@ export const getSpecificProductRecommendations = async (
   } catch (error) {
     console.error("Gemini Product Rec Error:", error);
     throw new Error("Failed to fetch specific recommendations.");
+  }
+};
+
+export const getBrandRecommendations = async (
+  brand: string,
+  userContext: string,
+  language: Language = 'en'
+): Promise<SpecificProduct[]> => {
+  try {
+    const langInstruction = language === 'zh' 
+      ? "Ensure all text fields are in Simplified Chinese (简体中文)." 
+      : "Ensure all text fields are in English.";
+
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: {
+        parts: [
+          {
+            text: `
+              Task: Recommend the top 3 best-suited products specifically from the brand "${brand}" for a user with this profile: "${userContext}".
+              
+              Requirements:
+              1. Focus strictly on products from "${brand}".
+              2. Select products that best address the user's specific concerns (e.g. if they have acne, pick the acne line; if aging, pick the anti-aging line).
+              3. Assign tiers based on priority for this user:
+                 - Gold: The "Must Have" hero product for their primary concern.
+                 - Silver: A highly recommended secondary product (e.g. maintenance).
+                 - Bronze: A complementary product or hidden gem.
+              4. Include estimated price.
+              5. Include a Google Search link.
+              6. Include key ingredients.
+              7. Valid image URL if possible.
+              8. ${langInstruction}
+              9. Return purely JSON matching the schema.
+            `
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: specificProductSchema,
+      }
+    });
+
+    if (!response.text) {
+      throw new Error("No response from AI");
+    }
+    
+    const data = JSON.parse(response.text);
+    return data.recommendations || [];
+
+  } catch (error) {
+    console.error("Gemini Brand Rec Error:", error);
+    throw new Error("Failed to fetch brand recommendations.");
   }
 };
 

@@ -116,8 +116,11 @@ export const ProductShareModal: React.FC<ProductShareModalProps> = ({ result, pr
         link.click();
         URL.revokeObjectURL(url);
       }
-    } catch (err) {
-      console.error("Share failed", err);
+    } catch (err: any) {
+      // Ignore share cancellation errors
+      if (err.name !== 'AbortError' && err.message !== 'Share canceled') {
+        console.error("Share failed", err);
+      }
     } finally {
       setIsGenerating(false);
     }

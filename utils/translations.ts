@@ -61,7 +61,24 @@ export const translations = {
       whatIsIt: "What is it?",
       rootCause: "Root Cause",
       dailyFixes: "Daily Fixes",
-      powerIngredients: "Power Ingredients"
+      powerIngredients: "Power Ingredients",
+      selectBudget: "Select Your Budget",
+      budgetLow: "Budget-Friendly (~$20)",
+      budgetMid: "Standard (~$50)",
+      budgetHigh: "Premium (~$100)",
+      budgetLux: "Luxury ($100+)",
+      customBudget: "Enter custom budget",
+      continue: "Continue"
+    },
+    brandPicks: {
+      title: "Brand Matcher",
+      button: "Shop by Brand",
+      selectBrand: "Select a Brand",
+      desc: "Choose a brand you love, and we'll tell you exactly what to buy based on your skin profile.",
+      customPlaceholder: "Or enter a brand name...",
+      analyzing: "Curating the best products from",
+      bestForYou: "Best for your profile",
+      start: "Get Recommendations"
     },
     productCheck: {
       title: "Product Checker",
@@ -192,7 +209,24 @@ export const translations = {
       whatIsIt: "这是什么？",
       rootCause: "根本原因",
       dailyFixes: "日常修复",
-      powerIngredients: "强效成分"
+      powerIngredients: "强效成分",
+      selectBudget: "选择您的预算",
+      budgetLow: "经济实惠 (~$20)",
+      budgetMid: "标准 (~$50)",
+      budgetHigh: "高端 (~$100)",
+      budgetLux: "奢华 ($100+)",
+      customBudget: "输入自定义预算",
+      continue: "继续"
+    },
+    brandPicks: {
+      title: "品牌匹配助手",
+      button: "按品牌选购",
+      selectBrand: "选择品牌",
+      desc: "选择您喜爱的品牌，我们将根据您的皮肤状况为您推荐最适合的产品。",
+      customPlaceholder: "或输入其他品牌...",
+      analyzing: "正在为您挑选最适合的",
+      bestForYou: "最适合您的",
+      start: "获取推荐"
     },
     productCheck: {
       title: "产品检查器",

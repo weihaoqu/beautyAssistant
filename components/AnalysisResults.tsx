@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { AnalysisResult, ProductRecommendation, FaceZone, Language } from '../types';
-import { Sparkles, Droplet, Sun, AlertCircle, CheckCircle2, ShoppingBag, ChevronRight, Heart, Leaf, Moon, Utensils, Smile, Activity, ScanLine, Target, Search, Info, Share2, Eye, MapPin, ScanFace, Meh, Frown, Dumbbell } from 'lucide-react';
+import { Sparkles, Droplet, Sun, AlertCircle, CheckCircle2, ShoppingBag, ChevronRight, Heart, Leaf, Moon, Utensils, Smile, Activity, ScanLine, Target, Search, Info, Share2, Eye, MapPin, ScanFace, Meh, Frown, Dumbbell, Tag } from 'lucide-react';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ConcernDetailModal } from './ConcernDetailModal';
+import { BrandRecommendationModal } from './BrandRecommendationModal';
 import { ShareModal } from './ShareModal';
 import { getTranslation } from '../utils/translations';
 
@@ -105,6 +106,7 @@ const FaceZoneCard: React.FC<{ zone: FaceZone; onClick: () => void }> = ({ zone,
 export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userImage, onReset, language, onOpenProductScanner }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductRecommendation | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [selectedConcern, setSelectedConcern] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const t = getTranslation(language);
@@ -156,6 +158,15 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         <ProductDetailModal 
           contextSummary={contextSummary}
           onClose={() => setIsSearchModalOpen(false)} 
+          language={language}
+        />
+      )}
+
+      {/* Brand Recommendation Modal */}
+      {isBrandModalOpen && (
+        <BrandRecommendationModal
+          contextSummary={contextSummary}
+          onClose={() => setIsBrandModalOpen(false)}
           language={language}
         />
       )}
@@ -356,29 +367,36 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
       )}
 
       <div className="mb-10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <ShoppingBag className="text-slate-400" />
             <h2 className="text-2xl font-bold text-slate-800">{t.results.personalizedRoutine}</h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button 
               onClick={onOpenProductScanner}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center"
             >
               <ScanLine size={16} />
               {t.results.checkProduct}
             </button>
             <button 
+              onClick={() => setIsBrandModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 text-sm font-medium rounded-lg hover:bg-rose-100 hover:border-rose-200 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center"
+            >
+              <Tag size={16} />
+              {t.brandPicks.button}
+            </button>
+            <button 
               onClick={() => setIsSearchModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center"
             >
               <Search size={16} />
               {t.results.findProduct}
             </button>
           </div>
         </div>
-        <p className="text-sm text-slate-500 mb-6 -mt-4 sm:-mt-2 sm:ml-9">
+        <p className="text-sm text-slate-500 mb-6 -mt-4 xl:-mt-2 xl:ml-9">
           {t.results.routineDesc}
         </p>
         

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trophy, Award, Medal, Loader2, DollarSign, ExternalLink, Sparkles, Clock, Beaker, Image as ImageIcon, ShoppingBag, Search, Info } from 'lucide-react';
+import { X, Trophy, Award, Medal, Loader2, DollarSign, ExternalLink, Sparkles, Clock, Beaker, Image as ImageIcon, ShoppingBag, Search, Info, ChevronRight } from 'lucide-react';
 import { ProductRecommendation, SpecificProduct, Language } from '../types';
 import { getSpecificProductRecommendations } from '../services/geminiService';
 import { getTranslation } from '../utils/translations';
@@ -173,6 +173,7 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number; t: a
 };
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, contextSummary, onClose, language }) => {
+  const [view, setView] = useState<'budget' | 'results'>(product ? 'budget' : 'results');
   const [budget, setBudget] = useState('50');
   const [products, setProducts] = useState<SpecificProduct[]>([]);
   const [loading, setLoading] = useState(false);
@@ -180,9 +181,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
   const [searchQuery, setSearchQuery] = useState('');
   const t = getTranslation(language);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (budgetOverride?: string) => {
     // Determine the term to search: either from the passed product prop or the manual search query
     const term = product ? `${product.category} - ${product.product_type}` : searchQuery;
+    const budgetVal = budgetOverride || budget;
 
     if (!term.trim()) return;
 
@@ -191,7 +193,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
       const recs = await getSpecificProductRecommendations(
         term,
         contextSummary,
-        `${budget} USD`,
+        `${budgetVal} USD`,
         language
       );
       setProducts(recs);
@@ -203,17 +205,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
     }
   };
 
-  // Initial fetch only if a product prop is provided
-  useEffect(() => {
-    if (product) {
-      fetchProducts();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     fetchProducts();
+  };
+
+  const handleBudgetSelect = (selectedBudget: string) => {
+    setBudget(selectedBudget);
+    setView('results');
+    fetchProducts(selectedBudget);
+  };
+
+  const handleCustomBudget = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (budget) {
+      setView('results');
+      fetchProducts(budget);
+    }
   };
 
   return (
@@ -237,60 +245,125 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
           </button>
         </div>
 
-        {/* Controls */}
-        <div className="p-6 pb-2 border-b border-slate-50">
-          <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-end gap-4">
-            {/* Search Input - Only shown if no product prop is passed */}
-            {!product && (
-              <div className="flex-grow w-full">
-                <label className="block text-sm font-medium text-slate-600 mb-1.5">{t.modal.findProductTitle}</label>
+        {/* Controls - Only visible in Results view */}
+        {view === 'results' && (
+          <div className="p-6 pb-2 border-b border-slate-50 animate-fade-in">
+            <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row items-end gap-4">
+              {/* Search Input - Only shown if no product prop is passed */}
+              {!product && (
+                <div className="flex-grow w-full">
+                  <label className="block text-sm font-medium text-slate-600 mb-1.5">{t.modal.findProductTitle}</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all"
+                      placeholder={t.modal.searchPlaceholder}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className={`${!product ? 'w-full sm:w-32' : 'flex-grow'}`}>
+                <label className="block text-sm font-medium text-slate-600 mb-1.5">{t.modal.budget}</label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    type="number" 
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all"
-                    placeholder={t.modal.searchPlaceholder}
-                    autoFocus
+                    placeholder="e.g. 50"
                   />
                 </div>
               </div>
-            )}
-
-            <div className={`${!product ? 'w-full sm:w-32' : 'flex-grow'}`}>
-              <label className="block text-sm font-medium text-slate-600 mb-1.5">{t.modal.budget}</label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  type="number" 
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all"
-                  placeholder="e.g. 50"
-                />
-              </div>
-            </div>
-            
-            <button 
-              type="submit"
-              disabled={loading || (!product && !searchQuery.trim())}
-              className={`bg-slate-800 text-white px-6 py-2 rounded-lg font-medium hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 h-[42px] ${!product ? 'w-full sm:w-auto' : ''}`}
-            >
-              {loading ? <Loader2 size={18} className="animate-spin" /> : (product ? t.modal.updatePicks : t.modal.search)}
-            </button>
-          </form>
-        </div>
+              
+              <button 
+                type="submit"
+                disabled={loading || (!product && !searchQuery.trim())}
+                className={`bg-slate-800 text-white px-6 py-2 rounded-lg font-medium hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 h-[42px] ${!product ? 'w-full sm:w-auto' : ''}`}
+              >
+                {loading ? <Loader2 size={18} className="animate-spin" /> : (product ? t.modal.updatePicks : t.modal.search)}
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {loading && !hasFetched ? (
-             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+          
+          {view === 'budget' && product ? (
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in py-4">
+               <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                 <DollarSign size={32} />
+               </div>
+               <h3 className="text-xl font-bold text-slate-800 mb-8 text-center">{t.modal.selectBudget}</h3>
+               
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg mb-8">
+                 <button onClick={() => handleBudgetSelect('20')} className="p-4 border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all font-semibold text-slate-600 flex items-center justify-center gap-2 group">
+                   <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 transition-colors">
+                     $
+                   </div>
+                   {t.modal.budgetLow}
+                 </button>
+                 <button onClick={() => handleBudgetSelect('50')} className="p-4 border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all font-semibold text-slate-600 flex items-center justify-center gap-2 group">
+                   <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 transition-colors">
+                     $$
+                   </div>
+                   {t.modal.budgetMid}
+                 </button>
+                 <button onClick={() => handleBudgetSelect('100')} className="p-4 border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all font-semibold text-slate-600 flex items-center justify-center gap-2 group">
+                   <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 transition-colors">
+                     $$$
+                   </div>
+                   {t.modal.budgetHigh}
+                 </button>
+                 <button onClick={() => handleBudgetSelect('150')} className="p-4 border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all font-semibold text-slate-600 flex items-center justify-center gap-2 group">
+                   <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 transition-colors">
+                     <Sparkles size={16} />
+                   </div>
+                   {t.modal.budgetLux}
+                 </button>
+               </div>
+
+               <div className="w-full max-w-xs relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-slate-400 font-medium">Or</span>
+                  </div>
+               </div>
+
+               <form onSubmit={handleCustomBudget} className="mt-6 flex gap-2 w-full max-w-xs">
+                 <div className="relative flex-grow">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="number" 
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                      placeholder="Custom amount"
+                    />
+                 </div>
+                 <button 
+                   type="submit"
+                   className="px-4 py-2 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900 transition-colors"
+                 >
+                   {t.modal.continue}
+                 </button>
+               </form>
+            </div>
+          ) : loading && !hasFetched ? (
+             <div className="flex flex-col items-center justify-center py-12 text-slate-400 animate-fade-in">
                <Loader2 size={40} className="animate-spin mb-4 text-rose-500" />
                <p>{t.modal.finding}</p>
              </div>
           ) : (
-            <>
+            <div className="animate-fade-in">
               {products.length > 0 ? (
                 <div className="space-y-6">
                   {products.map((item, idx) => (
@@ -311,7 +384,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
                    )}
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
         
