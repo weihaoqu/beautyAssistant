@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trophy, Award, Medal, Loader2, DollarSign, ExternalLink, Sparkles, Clock, Beaker, Image as ImageIcon, ShoppingBag, Search } from 'lucide-react';
-import { ProductRecommendation, SpecificProduct } from '../types';
+import { X, Trophy, Award, Medal, Loader2, DollarSign, ExternalLink, Sparkles, Clock, Beaker, Image as ImageIcon, ShoppingBag, Search, Info } from 'lucide-react';
+import { ProductRecommendation, SpecificProduct, Language } from '../types';
 import { getSpecificProductRecommendations } from '../services/geminiService';
+import { getTranslation } from '../utils/translations';
 
 interface ProductDetailModalProps {
   product?: ProductRecommendation;
   contextSummary: string;
   onClose: () => void;
+  language: Language;
 }
 
 const getTierIcon = (tier: string) => {
@@ -49,8 +51,9 @@ const getTierColor = (tier: string) => {
   }
 };
 
-const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = ({ item, index }) => {
+const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number; t: any }> = ({ item, index, t }) => {
   const [imgError, setImgError] = useState(false);
+  const [showReason, setShowReason] = useState(false);
 
   // Reset error state if the product image url changes (e.g. re-fetching)
   useEffect(() => {
@@ -58,7 +61,7 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = 
   }, [item.image_url]);
 
   return (
-    <div className={`border rounded-xl p-5 ${getTierColor(item.tier)} transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-scale-in`} style={{ animationDelay: `${index * 150}ms` }}>
+    <div className={`border rounded-xl p-5 ${getTierColor(item.tier)} transition-all duration-300 hover:shadow-xl hover:border-rose-300 hover:-translate-y-1 animate-scale-in`} style={{ animationDelay: `${index * 150}ms` }}>
       
       {/* Card Header Row */}
       <div className="flex gap-4 items-start mb-4">
@@ -67,7 +70,27 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = 
           <div className="flex justify-between items-start">
              <div>
                <span className="text-xs font-bold uppercase opacity-70 mb-1 block">{item.tier} Pick</span>
-               <h3 className="text-lg font-bold text-slate-800 leading-tight">{item.product_name}</h3>
+               <h3 className="text-lg font-bold text-slate-800 leading-tight flex items-center gap-2">
+                 {item.product_name}
+                 <div className="relative inline-flex items-center">
+                    <button
+                      type="button"
+                      onMouseEnter={() => setShowReason(true)}
+                      onMouseLeave={() => setShowReason(false)}
+                      onClick={(e) => { e.stopPropagation(); setShowReason(!showReason); }}
+                      className="text-slate-400 hover:text-rose-500 transition-colors focus:outline-none"
+                    >
+                      <Info size={16} />
+                    </button>
+                    {showReason && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-20 pointer-events-none">
+                        <div className="font-semibold mb-1 opacity-70 uppercase tracking-wider text-[10px]">Why we picked this</div>
+                        <p>{item.reason}</p>
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-slate-800"></div>
+                      </div>
+                    )}
+                 </div>
+               </h3>
                <p className="text-sm font-medium text-slate-600">{item.brand}</p>
              </div>
              <div className="text-right flex flex-col items-end gap-1">
@@ -107,7 +130,7 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = 
       <div className="bg-white/60 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 gap-3 border border-black/5">
          <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <Beaker size={14} /> Key Ingredients
+              <Beaker size={14} /> {t.results.keyIngredients}
             </div>
             <div className="flex flex-wrap gap-1">
               {item.key_ingredients && item.key_ingredients.length > 0 ? (
@@ -123,7 +146,7 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = 
          </div>
          <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wide">
-              <Clock size={14} /> Usage
+              <Clock size={14} /> {t.modal.usage}
             </div>
             <p className="text-xs text-slate-700 font-medium">
               {item.usage_frequency || "Follow package instructions"}
@@ -140,7 +163,7 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-900 transition-all shadow-md hover:shadow-lg transform active:scale-95"
             >
-              Find Online <ExternalLink size={16} />
+              {t.modal.findOnline} <ExternalLink size={16} />
             </a>
           )}
       </div>
@@ -149,12 +172,13 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number }> = 
   );
 };
 
-export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, contextSummary, onClose }) => {
+export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, contextSummary, onClose, language }) => {
   const [budget, setBudget] = useState('50');
   const [products, setProducts] = useState<SpecificProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const t = getTranslation(language);
 
   const fetchProducts = async () => {
     // Determine the term to search: either from the passed product prop or the manual search query
@@ -167,7 +191,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
       const recs = await getSpecificProductRecommendations(
         term,
         contextSummary,
-        `${budget} USD`
+        `${budget} USD`,
+        language
       );
       setProducts(recs);
       setHasFetched(true);
@@ -198,10 +223,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-50 to-white">
           <div>
              <span className="text-xs font-bold uppercase tracking-wider text-rose-500 mb-1 block">
-               {product ? 'Top Picks For You' : 'Product Finder'}
+               {product ? t.modal.topPicks : t.modal.productFinder}
              </span>
              <h2 className="text-2xl font-bold text-slate-800">
-               {product ? product.product_type : 'Find a Product'}
+               {product ? product.product_type : t.modal.findProductTitle}
              </h2>
           </div>
           <button 
@@ -218,7 +243,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
             {/* Search Input - Only shown if no product prop is passed */}
             {!product && (
               <div className="flex-grow w-full">
-                <label className="block text-sm font-medium text-slate-600 mb-1.5">Product Name or Category</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1.5">{t.modal.findProductTitle}</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
@@ -226,7 +251,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all"
-                    placeholder="e.g. Vitamin C Serum, Sunscreen..."
+                    placeholder={t.modal.searchPlaceholder}
                     autoFocus
                   />
                 </div>
@@ -234,7 +259,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
             )}
 
             <div className={`${!product ? 'w-full sm:w-32' : 'flex-grow'}`}>
-              <label className="block text-sm font-medium text-slate-600 mb-1.5">Budget (USD)</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1.5">{t.modal.budget}</label>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input 
@@ -252,7 +277,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
               disabled={loading || (!product && !searchQuery.trim())}
               className={`bg-slate-800 text-white px-6 py-2 rounded-lg font-medium hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 h-[42px] ${!product ? 'w-full sm:w-auto' : ''}`}
             >
-              {loading ? <Loader2 size={18} className="animate-spin" /> : (product ? 'Update Picks' : 'Search')}
+              {loading ? <Loader2 size={18} className="animate-spin" /> : (product ? t.modal.updatePicks : t.modal.search)}
             </button>
           </form>
         </div>
@@ -262,14 +287,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
           {loading && !hasFetched ? (
              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                <Loader2 size={40} className="animate-spin mb-4 text-rose-500" />
-               <p>Finding the best products for your skin profile...</p>
+               <p>{t.modal.finding}</p>
              </div>
           ) : (
             <>
               {products.length > 0 ? (
                 <div className="space-y-6">
                   {products.map((item, idx) => (
-                    <SpecificProductCard key={idx} item={item} index={idx} />
+                    <SpecificProductCard key={idx} item={item} index={idx} t={t} />
                   ))}
                 </div>
               ) : (
@@ -279,10 +304,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
                         <div className="bg-slate-50 p-4 rounded-full mb-3">
                            <Search size={32} className="text-slate-300" />
                         </div>
-                        <p>Enter a product name to see recommendations.</p>
+                        <p>{t.modal.enterProduct}</p>
                      </>
                    ) : (
-                     <p>No products found. Try a different search term.</p>
+                     <p>{t.modal.noProducts}</p>
                    )}
                 </div>
               )}
@@ -292,7 +317,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
         
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-400">
-          Prices are estimates and may vary by retailer. Links provided are for search convenience.
+          {t.modal.priceDisclaimer}
         </div>
       </div>
     </div>

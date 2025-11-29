@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
-import { AnalysisResult, ProductRecommendation, FaceZone } from '../types';
-import { Sparkles, Droplet, Sun, AlertCircle, CheckCircle2, ShoppingBag, ChevronRight, Heart, Leaf, Moon, Utensils, Smile, Activity, ScanLine, Target, Search, Info } from 'lucide-react';
+import { AnalysisResult, ProductRecommendation, FaceZone, Language } from '../types';
+import { Sparkles, Droplet, Sun, AlertCircle, CheckCircle2, ShoppingBag, ChevronRight, Heart, Leaf, Moon, Utensils, Smile, Activity, ScanLine, Target, Search, Info, Share2, Eye, MapPin, ScanFace, Meh, Frown, Dumbbell } from 'lucide-react';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ConcernDetailModal } from './ConcernDetailModal';
+import { ShareModal } from './ShareModal';
+import { getTranslation } from '../utils/translations';
 
 interface AnalysisResultsProps {
   result: AnalysisResult;
   userImage: string | null;
   onReset: () => void;
+  language: Language;
+  onOpenProductScanner: () => void;
 }
 
 interface ProductCardProps {
   product: ProductRecommendation;
   onClick: () => void;
+  t: any;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) => (
+const ProductCard: React.FC<ProductCardProps> = ({ product, onClick, t }) => (
   <div 
     onClick={onClick}
     className="bg-white p-5 rounded-xl shadow-sm border border-slate-100 flex flex-col h-full hover:shadow-lg hover:border-rose-200 hover:-translate-y-1 transition-all cursor-pointer group relative"
@@ -31,7 +36,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) => (
     
     <div className="space-y-3">
       <div>
-        <span className="text-xs font-semibold text-slate-400 block mb-1">KEY INGREDIENTS</span>
+        <span className="text-xs font-semibold text-slate-400 block mb-1">{t.results.keyIngredients}</span>
         <div className="flex flex-wrap gap-1">
           {product.key_ingredients.map((ing, idx) => (
             <span key={idx} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
@@ -50,6 +55,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onClick }) => (
   </div>
 );
 
+const getZoneIcon = (zoneName: string) => {
+  const z = zoneName.toLowerCase();
+  if (z.includes('eye')) return <Eye size={18} className="text-indigo-500" />;
+  if (z.includes('nose')) return <MapPin size={18} className="text-rose-500" />;
+  if (z.includes('cheek')) return <Smile size={18} className="text-orange-500" />;
+  if (z.includes('forehead')) return <ScanFace size={18} className="text-blue-500" />;
+  if (z.includes('chin')) return <Meh size={18} className="text-teal-500" />;
+  return <Target size={18} className="text-slate-500" />;
+};
+
 const FaceZoneCard: React.FC<{ zone: FaceZone; onClick: () => void }> = ({ zone, onClick }) => {
   const getSeverityColor = (s: string) => {
     switch (s) {
@@ -65,24 +80,34 @@ const FaceZoneCard: React.FC<{ zone: FaceZone; onClick: () => void }> = ({ zone,
       onClick={onClick}
       className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 shadow-sm cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group"
     >
-      <div className="flex flex-col">
-        <span className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-0.5 flex items-center gap-1">
-          {zone.zone}
-          <Info size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
-        </span>
-        <span className="font-medium text-slate-800">{zone.condition}</span>
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-white group-hover:border-rose-100 transition-colors">
+           {getZoneIcon(zone.zone)}
+        </div>
+        <div className="flex flex-col">
+          <span className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-0.5 flex items-center gap-1">
+            {zone.zone}
+            <Info size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+          </span>
+          <span className="font-medium text-slate-800">{zone.condition}</span>
+        </div>
       </div>
-      <span className={`px-2 py-1 rounded-md text-xs font-semibold border ${getSeverityColor(zone.severity)}`}>
-        {zone.severity}
-      </span>
+      <div className="flex items-center gap-2">
+        <span className={`px-2 py-1 rounded-md text-xs font-semibold border ${getSeverityColor(zone.severity)}`}>
+          {zone.severity}
+        </span>
+        <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
+      </div>
     </div>
   );
 };
 
-export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userImage, onReset }) => {
+export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userImage, onReset, language, onOpenProductScanner }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductRecommendation | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedConcern, setSelectedConcern] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const t = getTranslation(language);
 
   const contextSummary = `
     Skin Type: ${result.skin_analysis.skin_type}, 
@@ -91,14 +116,27 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
     Hair: ${result.hair_analysis.hair_type}, ${result.hair_analysis.condition}.
   `;
 
-  const getLifestyleIcon = (category: string) => {
+  const getLifestyleStyle = (category: string) => {
     const c = category.toLowerCase();
-    if (c.includes('diet') || c.includes('nutrition') || c.includes('food')) return <Utensils size={18} className="text-orange-500" />;
-    if (c.includes('sleep') || c.includes('rest')) return <Moon size={18} className="text-indigo-500" />;
-    if (c.includes('hydrat') || c.includes('water')) return <Droplet size={18} className="text-blue-500" />;
-    if (c.includes('stress') || c.includes('mind') || c.includes('relax')) return <Smile size={18} className="text-yellow-500" />;
-    if (c.includes('exercise') || c.includes('activ') || c.includes('workout')) return <Activity size={18} className="text-red-500" />;
-    return <Leaf size={18} className="text-green-500" />;
+    if (c.includes('diet') || c.includes('nutrition') || c.includes('food') || c.includes('eat')) {
+      return { icon: <Utensils size={18} />, color: 'text-orange-600', bg: 'bg-orange-100' };
+    }
+    if (c.includes('sleep') || c.includes('rest') || c.includes('night')) {
+      return { icon: <Moon size={18} />, color: 'text-indigo-600', bg: 'bg-indigo-100' };
+    }
+    if (c.includes('hydrat') || c.includes('water') || c.includes('fluid')) {
+      return { icon: <Droplet size={18} />, color: 'text-cyan-600', bg: 'bg-cyan-100' };
+    }
+    if (c.includes('stress') || c.includes('mind') || c.includes('relax') || c.includes('breath') || c.includes('calm')) {
+      return { icon: <Smile size={18} />, color: 'text-purple-600', bg: 'bg-purple-100' };
+    }
+    if (c.includes('exercise') || c.includes('activ') || c.includes('workout') || c.includes('sport') || c.includes('move')) {
+      return { icon: <Dumbbell size={18} />, color: 'text-rose-600', bg: 'bg-rose-100' };
+    }
+    if (c.includes('sun') || c.includes('spf') || c.includes('protect')) {
+        return { icon: <Sun size={18} />, color: 'text-amber-600', bg: 'bg-amber-100' };
+    }
+    return { icon: <Leaf size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-100' };
   };
 
   return (
@@ -109,6 +147,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
           product={selectedProduct} 
           contextSummary={contextSummary}
           onClose={() => setSelectedProduct(null)} 
+          language={language}
         />
       )}
 
@@ -117,6 +156,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         <ProductDetailModal 
           contextSummary={contextSummary}
           onClose={() => setIsSearchModalOpen(false)} 
+          language={language}
         />
       )}
 
@@ -126,6 +166,17 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
           concern={selectedConcern}
           contextSummary={contextSummary}
           onClose={() => setSelectedConcern(null)}
+          language={language}
+        />
+      )}
+      
+      {/* Share Modal */}
+      {isShareModalOpen && (
+        <ShareModal 
+          result={result}
+          userImage={userImage}
+          onClose={() => setIsShareModalOpen(false)}
+          language={language}
         />
       )}
 
@@ -157,7 +208,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
                 <div className="p-2 bg-rose-100 rounded-lg text-rose-600">
                   <Target size={24} />
                 </div>
-                <h3 className="text-xl font-semibold text-slate-800">Visual Breakdown</h3>
+                <h3 className="text-xl font-semibold text-slate-800">{t.results.visualBreakdown}</h3>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -173,23 +224,36 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
                   <p className="text-slate-500 italic col-span-2">Detailed zone analysis not available.</p>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-4 text-center">Click on any area to learn more about the condition.</p>
+              <p className="text-xs text-slate-400 mt-4 text-center">{t.results.tapArea}</p>
            </div>
 
            {/* Quick Stats Grid */}
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-rose-400">
+              <div 
+                onClick={() => setSelectedConcern(`${result.skin_analysis.skin_type} Skin Type`)}
+                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-rose-400 cursor-pointer hover:shadow-md transition-all group relative"
+              >
+                <div className="absolute top-5 right-5 text-slate-300 group-hover:text-rose-400 transition-colors">
+                  <ChevronRight size={20} />
+                </div>
                 <div className="flex items-center gap-2 mb-2 text-rose-600">
                   <Sparkles size={18} />
-                  <span className="font-bold text-sm uppercase">Skin Type</span>
+                  <span className="font-bold text-sm uppercase">{t.results.skinType}</span>
                 </div>
                 <p className="text-lg font-semibold text-slate-800">{result.skin_analysis.skin_type}</p>
                 <p className="text-sm text-slate-500 mt-1">{result.skin_analysis.skin_tone}</p>
               </div>
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-indigo-400">
+              
+              <div 
+                onClick={() => setSelectedConcern(`${result.hair_analysis.condition} Hair`)}
+                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-indigo-400 cursor-pointer hover:shadow-md transition-all group relative"
+              >
+                <div className="absolute top-5 right-5 text-slate-300 group-hover:text-indigo-400 transition-colors">
+                  <ChevronRight size={20} />
+                </div>
                 <div className="flex items-center gap-2 mb-2 text-indigo-600">
                   <Droplet size={18} />
-                  <span className="font-bold text-sm uppercase">Hair Health</span>
+                  <span className="font-bold text-sm uppercase">{t.results.hairHealth}</span>
                 </div>
                 <p className="text-lg font-semibold text-slate-800">{result.hair_analysis.condition}</p>
                 <p className="text-sm text-slate-500 mt-1">{result.hair_analysis.hair_type}</p>
@@ -201,26 +265,46 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Skin Detailed Profile */}
         <div className="glass-panel p-6 rounded-2xl border-t-4 border-rose-400 shadow-sm lg:col-span-2">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Detailed Observations</h3>
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-lg font-semibold text-slate-800">{t.results.detailedObservations}</h3>
+            <button 
+              onClick={() => setIsShareModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-sm font-medium hover:bg-rose-100 transition-colors"
+            >
+              <Share2 size={16} />
+              {t.share.button}
+            </button>
+          </div>
           <div className="space-y-4">
              <div>
-                <p className="text-sm text-slate-500 mb-2 font-medium">Skin Concerns Identified</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-sm text-slate-500 mb-3 font-medium">{t.results.concernsIdentified}</p>
+                {/* Refactored Concerns Display: Interactive Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {result.skin_analysis.concerns.map((c, i) => (
                     <button 
                       key={i} 
                       onClick={() => setSelectedConcern(c)}
-                      className="px-3 py-1.5 bg-red-50 text-red-600 text-sm rounded-lg font-medium border border-red-100 flex items-center gap-1.5 hover:bg-red-100 hover:border-red-200 transition-all active:scale-95"
+                      className="flex items-center justify-between p-3 bg-white rounded-xl border border-rose-100 shadow-sm hover:shadow-md hover:border-rose-300 hover:-translate-y-0.5 transition-all group text-left"
                     >
-                      <AlertCircle size={14} />
-                      {c}
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 shrink-0 group-hover:bg-rose-500 group-hover:text-white transition-colors">
+                          <AlertCircle size={16} />
+                        </div>
+                        <span className="font-semibold text-slate-700 text-sm truncate group-hover:text-rose-600 transition-colors">{c}</span>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-400 transition-colors shrink-0" />
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-slate-400 mt-2 text-right">{t.results.tapConcern}</p>
              </div>
-             <p className="text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm">
-               "{result.skin_analysis.summary}"
-             </p>
+             
+             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wide">{t.results.analysisSummary}</p>
+                <p className="text-slate-700 leading-relaxed italic">
+                  "{result.skin_analysis.summary}"
+                </p>
+             </div>
           </div>
         </div>
 
@@ -229,15 +313,15 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
           <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 mb-4 shadow-sm">
             <CheckCircle2 size={32} />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">Analysis Complete</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">{t.results.analysisComplete}</h3>
           <p className="text-sm text-slate-500 mb-6 px-4">
-            We've analyzed your unique profile to curate the perfect routine for you.
+            {t.results.completeDesc}
           </p>
           <button 
             onClick={onReset}
             className="text-sm font-semibold text-rose-500 hover:text-rose-600 py-2 px-4 rounded-full bg-rose-50 hover:bg-rose-100 transition-all"
           >
-            Start New Analysis
+            {t.results.startNew}
           </button>
         </div>
       </div>
@@ -249,21 +333,24 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
              <div className="p-2 bg-teal-100 rounded-lg text-teal-700">
                <Heart size={24} />
              </div>
-             <h3 className="text-xl font-semibold text-slate-800">Healthy Life Suggestions</h3>
+             <h3 className="text-xl font-semibold text-slate-800">{t.results.healthyLife}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {result.lifestyle_suggestions.map((item, idx) => (
+             {result.lifestyle_suggestions.map((item, idx) => {
+                const style = getLifestyleStyle(item.category);
+                return (
                 <div key={idx} className="bg-white/70 p-4 rounded-xl border border-teal-50/50 shadow-sm flex flex-col gap-2 hover:shadow-md transition-shadow">
                    <div className="flex items-center gap-2 mb-1">
-                      <div className="p-1.5 bg-white rounded-full shadow-sm">
-                        {getLifestyleIcon(item.category)}
+                      <div className={`p-2 rounded-full shadow-sm ${style.bg} ${style.color}`}>
+                        {style.icon}
                       </div>
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.category}</span>
                    </div>
                    <h4 className="font-semibold text-slate-800 leading-tight">{item.title}</h4>
                    <p className="text-sm text-slate-600 leading-relaxed">{item.details}</p>
                 </div>
-             ))}
+                );
+             })}
           </div>
         </div>
       )}
@@ -272,18 +359,27 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <ShoppingBag className="text-slate-400" />
-            <h2 className="text-2xl font-bold text-slate-800">Your Personalized Routine</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{t.results.personalizedRoutine}</h2>
           </div>
-          <button 
-            onClick={() => setIsSearchModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
-          >
-            <Search size={16} />
-            Find Specific Product
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={onOpenProductScanner}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all shadow-sm"
+            >
+              <ScanLine size={16} />
+              {t.results.checkProduct}
+            </button>
+            <button 
+              onClick={() => setIsSearchModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+            >
+              <Search size={16} />
+              {t.results.findProduct}
+            </button>
+          </div>
         </div>
         <p className="text-sm text-slate-500 mb-6 -mt-4 sm:-mt-2 sm:ml-9">
-          Click on any product card to see specific Gold, Silver, and Bronze recommendations customized for your budget.
+          {t.results.routineDesc}
         </p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -292,6 +388,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
               key={index} 
               product={rec} 
               onClick={() => setSelectedProduct(rec)}
+              t={t}
             />
           ))}
         </div>
@@ -300,7 +397,7 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-yellow-800">
-          <strong>Disclaimer:</strong> This application uses AI for visual analysis and is for informational and entertainment purposes only. It is not a medical device and does not provide medical diagnosis or advice. Please consult a dermatologist for any skin concerns.
+          <strong>{t.results.disclaimer}</strong>
         </div>
       </div>
     </div>

@@ -1,12 +1,30 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Upload, Camera, Image as ImageIcon, X, Aperture } from 'lucide-react';
+import { Language } from '../types';
+import { getTranslation } from '../utils/translations';
 
 interface ImageUploaderProps {
   onImageSelected: (base64: string) => void;
   isLoading: boolean;
+  language: Language;
+  onError: (msg: string) => void;
+  cameraFacingMode?: 'user' | 'environment';
+  customTexts?: {
+    title?: string;
+    desc?: string;
+    button?: string;
+    loading?: string;
+  };
 }
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, isLoading }) => {
+export const ImageUploader: React.FC<ImageUploaderProps> = ({ 
+  onImageSelected, 
+  isLoading, 
+  language, 
+  onError,
+  cameraFacingMode = 'user',
+  customTexts
+}) => {
   const [dragActive, setDragActive] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -14,6 +32,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const t = getTranslation(language);
 
   // Cleanup camera stream on unmount
   useEffect(() => {
@@ -26,7 +45,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
     try {
       setIsCameraOpen(true);
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } 
+        video: { 
+          facingMode: cameraFacingMode, 
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 } 
+        } 
       });
       // Small delay to ensure video element is rendered
       setTimeout(() => {
@@ -34,10 +57,18 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
           videoRef.current.srcObject = stream;
         }
       }, 100);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error accessing camera:", err);
-      alert("Could not access camera. Please allow camera permissions.");
       setIsCameraOpen(false);
+      
+      // Handle specific camera errors
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        onError(t.errors.cameraPermission);
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        onError(t.errors.cameraNotFound);
+      } else {
+        onError(t.upload.errorCamera);
+      }
     }
   };
 
@@ -61,9 +92,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
       
       const context = canvas.getContext('2d');
       if (context) {
-        // Mirror the image to match the user-facing camera view
-        context.translate(canvas.width, 0);
-        context.scale(-1, 1);
+        // Mirror the image only if it's the user-facing camera
+        if (cameraFacingMode === 'user') {
+          context.translate(canvas.width, 0);
+          context.scale(-1, 1);
+        }
         
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
@@ -77,15 +110,32 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
     }
   };
 
+  const validateAndProcessFile = (file: File) => {
+    // 1. Check file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+    if (!validTypes.includes(file.type)) {
+      onError(t.errors.invalidType);
+      return;
+    }
+
+    // 2. Check file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      onError(t.errors.fileTooLarge);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setPreview(result);
+      onImageSelected(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFile = (file: File) => {
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setPreview(result);
-        onImageSelected(result);
-      };
-      reader.readAsDataURL(file);
+    if (file) {
+      validateAndProcessFile(file);
     }
   };
 
@@ -127,7 +177,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept="image/*"
+        accept="image/jpeg, image/png, image/webp"
         onChange={handleChange}
       />
       
@@ -141,7 +191,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
             autoPlay 
             playsInline 
             muted
-            className="w-full h-full object-cover transform -scale-x-100"
+            className={`w-full h-full object-cover ${cameraFacingMode === 'user' ? 'transform -scale-x-100' : ''}`}
           />
           
           <button
@@ -176,10 +226,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
           </div>
           
           <h3 className="text-xl font-semibold text-slate-800 mb-2">
-            Upload your photo
+            {customTexts?.title || t.upload.title}
           </h3>
           <p className="text-slate-500 mb-6 max-w-xs mx-auto">
-            Take a selfie or drag and drop an image here. For best results, ensure good lighting.
+            {customTexts?.desc || t.upload.desc}
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -188,14 +238,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
               className="px-6 py-2.5 rounded-full bg-rose-500 text-white text-sm font-medium hover:bg-rose-600 transition-colors shadow-md shadow-rose-200 flex items-center justify-center gap-2"
             >
                <Aperture size={18} />
-               Take Selfie
+               {customTexts?.button || t.upload.takeSelfie}
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
               className="px-6 py-2.5 rounded-full bg-white text-slate-700 border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm flex items-center justify-center gap-2"
             >
                <Upload size={18} />
-               Select File
+               {t.upload.selectFile}
             </button>
           </div>
         </div>
@@ -209,7 +259,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelected, i
           {isLoading ? (
              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white">
                 <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
-                <p className="font-medium animate-pulse">Analyzing skin & hair...</p>
+                <p className="font-medium animate-pulse">{customTexts?.loading || t.upload.analyzing}</p>
              </div>
           ) : (
             <button

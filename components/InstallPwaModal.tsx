@@ -1,12 +1,17 @@
 import React from 'react';
 import { X, Share, PlusSquare, Smartphone, MoreVertical, Menu } from 'lucide-react';
+import { Language } from '../types';
+import { getTranslation } from '../utils/translations';
 
 interface InstallPwaModalProps {
   onClose: () => void;
   isIOS: boolean;
+  language: Language;
 }
 
-export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS }) => {
+export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS, language }) => {
+  const t = getTranslation(language);
+
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
@@ -14,7 +19,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-50 to-white">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Smartphone className="text-rose-500" size={20} />
-            Install App
+            {t.installModal.title}
           </h3>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-black/5">
             <X size={24} />
@@ -23,7 +28,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
 
         <div className="p-6 space-y-6">
           <p className="text-sm text-slate-600 text-center">
-            Install <strong>GlowAI</strong> on your home screen for the best experience.
+            {t.installModal.desc}
           </p>
 
           {isIOS ? (
@@ -33,7 +38,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
                   <Share size={20} />
                 </div>
                 <div className="text-sm text-slate-700">
-                  1. Tap the <strong>Share</strong> button on the toolbar.
+                  {t.installModal.iosShare}
                 </div>
               </div>
 
@@ -42,7 +47,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
                   <PlusSquare size={20} />
                 </div>
                 <div className="text-sm text-slate-700">
-                  2. Scroll down and select <br/><strong>Add to Home Screen</strong>.
+                  {t.installModal.iosAdd}
                 </div>
               </div>
             </div>
@@ -53,7 +58,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
                   <MoreVertical size={20} />
                 </div>
                 <div className="text-sm text-slate-700">
-                  1. Tap the <strong>Menu</strong> button (usually 3 dots).
+                  {t.installModal.androidMenu}
                 </div>
               </div>
 
@@ -62,7 +67,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
                   <PlusSquare size={20} />
                 </div>
                 <div className="text-sm text-slate-700">
-                  2. Select <strong>Install App</strong> or <br/><strong>Add to Home Screen</strong>.
+                  {t.installModal.androidAdd}
                 </div>
               </div>
             </div>
@@ -74,7 +79,7 @@ export const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ onClose, isIOS
             onClick={onClose}
             className="w-full py-2.5 bg-slate-800 text-white font-medium rounded-xl hover:bg-slate-900 transition-colors"
           >
-            Got it
+            {t.installModal.gotIt}
           </button>
         </div>
       </div>

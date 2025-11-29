@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { X, Clock, Calendar, Trash2, ChevronRight, ScanFace } from 'lucide-react';
-import { StoredScan } from '../types';
+import { StoredScan, Language } from '../types';
 import { getHistory, deleteScan } from '../services/storageService';
+import { getTranslation } from '../utils/translations';
 
 interface HistoryModalProps {
   onClose: () => void;
   onLoadScan: (scan: StoredScan) => void;
+  language: Language;
 }
 
-export const HistoryModal: React.FC<HistoryModalProps> = ({ onClose, onLoadScan }) => {
+export const HistoryModal: React.FC<HistoryModalProps> = ({ onClose, onLoadScan, language }) => {
   const [history, setHistory] = useState<StoredScan[]>([]);
   const [loading, setLoading] = useState(true);
+  const t = getTranslation(language);
 
   useEffect(() => {
     loadHistory();
@@ -29,14 +32,14 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ onClose, onLoadScan 
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this scan?")) {
+    if (window.confirm(t.history.deleteConfirm)) {
       await deleteScan(id);
       loadHistory();
     }
   };
 
   const formatDate = (timestamp: number) => {
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -52,7 +55,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ onClose, onLoadScan 
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-rose-50 to-white">
           <h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
             <Clock className="text-rose-500" size={20} />
-            History
+            {t.history.title}
           </h3>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-black/5 transition-colors">
             <X size={24} />
@@ -70,8 +73,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ onClose, onLoadScan 
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
                 <Clock size={32} />
               </div>
-              <p className="font-medium">No previous scans found</p>
-              <p className="text-sm mt-1">Your analysis history will appear here.</p>
+              <p className="font-medium">{t.history.noScans}</p>
+              <p className="text-sm mt-1">{t.history.noScansDesc}</p>
             </div>
           ) : (
             history.map((scan) => (
@@ -90,7 +93,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({ onClose, onLoadScan 
                     {formatDate(scan.timestamp)}
                   </div>
                   <h4 className="font-semibold text-slate-800 truncate">
-                    {scan.result.skin_analysis.skin_type} Skin
+                    {scan.result.skin_analysis.skin_type}
                   </h4>
                   <p className="text-xs text-slate-500 truncate">
                     {scan.result.skin_analysis.concerns.slice(0, 2).join(', ')}...

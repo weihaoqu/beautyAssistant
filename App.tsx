@@ -1,14 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, ScanFace, Download, History as HistoryIcon } from 'lucide-react';
+import { Sparkles, ScanFace, Download, History as HistoryIcon, Globe, TrendingUp, ScanLine } from 'lucide-react';
 import { ImageUploader } from './components/ImageUploader';
 import { AnalysisResults } from './components/AnalysisResults';
 import { InstallPwaModal } from './components/InstallPwaModal';
 import { HistoryModal } from './components/HistoryModal';
+import { ProgressTracker } from './components/ProgressTracker';
+import { LanguageSelector } from './components/LanguageSelector';
+import { ProductScannerModal } from './components/ProductScannerModal';
 import { analyzeImage } from './services/geminiService';
-import { saveScan } from './services/storageService';
-import { AnalysisResult, StoredScan } from './types';
+import { saveScan, getHistory } from './services/storageService';
+import { AnalysisResult, StoredScan, Language } from './types';
+import { getTranslation } from './utils/translations';
 
 const App: React.FC = () => {
+  // Initialize language from localStorage or default to 'en'
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = localStorage.getItem('glowai_lang');
+    return (saved === 'en' || saved === 'zh') ? saved : 'en';
+  });
+
+  // Determine if the user has explicitly selected a language before
+  const [hasSelectedLanguage, setHasSelectedLanguage] = useState<boolean>(() => {
+    return !!localStorage.getItem('glowai_lang');
+  });
+
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,8 +35,15 @@ const App: React.FC = () => {
   const [isStandalone, setIsStandalone] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   
-  // History State
+  // Modals & Features State
   const [showHistory, setShowHistory] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
+  const [isProductScannerOpen, setIsProductScannerOpen] = useState(false);
+
+  // Context for Scanner
+  const [latestProfile, setLatestProfile] = useState<string>("");
+
+  const t = getTranslation(language);
 
   useEffect(() => {
     // Check if running on iOS
@@ -40,6 +62,17 @@ const App: React.FC = () => {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  // Fetch latest history on mount for context
+  useEffect(() => {
+    getHistory().then(scans => {
+      if (scans.length > 0) {
+        const latest = scans[0].result;
+        const summary = `Skin Type: ${latest.skin_analysis.skin_type}, Concerns: ${latest.skin_analysis.concerns.join(', ')}.`;
+        setLatestProfile(summary);
+      }
+    });
   }, []);
 
   const handleInstallClick = () => {
@@ -61,11 +94,14 @@ const App: React.FC = () => {
     setError(null);
     setUserImage(base64);
     try {
-      const analysisData = await analyzeImage(base64);
+      const analysisData = await analyzeImage(base64, language);
       setResult(analysisData);
       
       // Auto-save to history
-      saveScan(base64, analysisData).catch(err => console.error("Failed to save history:", err));
+      saveScan(base64, analysisData).then(() => {
+        // Update local context immediately after new scan
+        setLatestProfile(`Skin Type: ${analysisData.skin_analysis.skin_type}, Concerns: ${analysisData.skin_analysis.concerns.join(', ')}.`);
+      }).catch(err => console.error("Failed to save history:", err));
       
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
@@ -87,37 +123,85 @@ const App: React.FC = () => {
     setShowHistory(false);
   };
 
+  const toggleLanguage = () => {
+    const newLang = language === 'en' ? 'zh' : 'en';
+    setLanguage(newLang);
+    localStorage.setItem('glowai_lang', newLang);
+  };
+
+  const handleInitialLanguageSelect = (lang: Language) => {
+    setLanguage(lang);
+    setHasSelectedLanguage(true);
+    localStorage.setItem('glowai_lang', lang);
+  };
+
+  if (!hasSelectedLanguage) {
+    return <LanguageSelector onSelect={handleInitialLanguageSelect} />;
+  }
+
+  // Determine current context for scanner
+  // Priority: 1. Current active result (most fresh) 2. Latest history (stored) 3. Generic fallback
+  const currentContext = result 
+    ? `Skin Type: ${result.skin_analysis.skin_type}, Concerns: ${result.skin_analysis.concerns.join(', ')}.`
+    : (latestProfile || "General Skin Analysis - No specific user profile loaded.");
+
   return (
-    <div className="min-h-screen pb-12">
-      {showInstallModal && <InstallPwaModal onClose={() => setShowInstallModal(false)} isIOS={isIOS} />}
-      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadScan={handleLoadScan} />}
+    <div className="min-h-screen pb-12 animate-fade-in relative">
+      {showInstallModal && <InstallPwaModal onClose={() => setShowInstallModal(false)} isIOS={isIOS} language={language} />}
+      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadScan={handleLoadScan} language={language} />}
+      {showProgress && <ProgressTracker onClose={() => setShowProgress(false)} language={language} />}
+      {isProductScannerOpen && (
+        <ProductScannerModal 
+          userProfileSummary={currentContext}
+          onClose={() => setIsProductScannerOpen(false)}
+          language={language}
+        />
+      )}
       
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-rose-500 cursor-pointer" onClick={handleReset}>
             <ScanFace size={28} />
-            <span className="font-bold text-xl tracking-tight text-slate-800">Glow<span className="text-rose-500">AI</span></span>
+            <span className="font-bold text-xl tracking-tight text-slate-800">{t.appTitle}<span className="text-rose-500">AI</span></span>
           </div>
           
           <div className="flex items-center gap-2 md:gap-3">
+             <button
+              onClick={toggleLanguage}
+              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
+              title="Switch Language"
+            >
+              <Globe size={20} />
+              <span className="text-sm font-medium uppercase">{language}</span>
+            </button>
+
+            <button
+              onClick={() => setShowProgress(true)}
+              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
+              title={t.progress.title}
+            >
+               <TrendingUp size={20} />
+               <span className="hidden sm:inline text-sm font-medium">{t.progress.title}</span>
+            </button>
+
             {!isStandalone && (
               <button 
                 onClick={handleInstallClick}
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
               >
                 <Download size={16} />
-                Install App
+                {t.install}
               </button>
             )}
             
             <button
               onClick={() => setShowHistory(true)}
               className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
-              title="History"
+              title={t.history.title}
             >
               <HistoryIcon size={20} />
-              <span className="hidden sm:inline text-sm font-medium">History</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.history.title}</span>
             </button>
 
             {/* Mobile Icon Button for Install */}
@@ -136,7 +220,7 @@ const App: React.FC = () => {
                 onClick={handleReset}
                 className="text-sm font-medium text-slate-600 hover:text-rose-500 transition-colors ml-1"
               >
-                New Analysis
+                {t.newAnalysis}
               </button>
             )}
           </div>
@@ -153,17 +237,19 @@ const App: React.FC = () => {
                 AI-Powered Beauty Consultant
               </div>
               <h1 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6 leading-tight">
-                Discover your perfect <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-teal-500">care routine</span>
+                {t.heroTitle1} <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-teal-500">{t.heroTitle2}</span>
               </h1>
               <p className="text-lg text-slate-500 mb-8">
-                Upload a photo to get an instant analysis of your skin and hair health, along with personalized product recommendations.
+                {t.heroSubtitle}
               </p>
             </div>
             
             <ImageUploader 
               onImageSelected={handleImageSelected} 
               isLoading={isLoading} 
+              language={language}
+              onError={setError}
             />
 
             {/* Prominent Install Button for Main Page */}
@@ -174,7 +260,7 @@ const App: React.FC = () => {
                   className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-full text-sm font-medium hover:bg-slate-50 hover:border-rose-200 hover:text-rose-600 transition-all shadow-sm group"
                 >
                   <Download size={18} className="text-slate-400 group-hover:text-rose-500 transition-colors" />
-                  Install App for Better Experience
+                  {t.install}
                 </button>
               </div>
             )}
@@ -187,23 +273,40 @@ const App: React.FC = () => {
             
             <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center opacity-60">
               <div>
-                <h4 className="font-bold text-slate-800 mb-2">Analyze</h4>
-                <p className="text-sm">Advanced computer vision identifies skin type and concerns.</p>
+                <h4 className="font-bold text-slate-800 mb-2">{t.steps.analyze.title}</h4>
+                <p className="text-sm">{t.steps.analyze.desc}</p>
               </div>
               <div>
-                <h4 className="font-bold text-slate-800 mb-2">Recommend</h4>
-                <p className="text-sm">Get tailored suggestions for serums, creams, and haircare.</p>
+                <h4 className="font-bold text-slate-800 mb-2">{t.steps.recommend.title}</h4>
+                <p className="text-sm">{t.steps.recommend.desc}</p>
               </div>
               <div>
-                <h4 className="font-bold text-slate-800 mb-2">Improve</h4>
-                <p className="text-sm">Track your glow up journey with consistent insights.</p>
+                <h4 className="font-bold text-slate-800 mb-2">{t.steps.improve.title}</h4>
+                <p className="text-sm">{t.steps.improve.desc}</p>
               </div>
             </div>
           </div>
         ) : (
-          <AnalysisResults result={result} userImage={userImage} onReset={handleReset} />
+          <AnalysisResults 
+             result={result} 
+             userImage={userImage} 
+             onReset={handleReset} 
+             language={language} 
+             onOpenProductScanner={() => setIsProductScannerOpen(true)}
+          />
         )}
       </main>
+
+      {/* Floating Action Button for Product Scanner (Visible Everywhere) */}
+      <button
+        onClick={() => setIsProductScannerOpen(true)}
+        className="fixed bottom-6 right-6 z-40 bg-slate-800 text-white p-4 rounded-full shadow-2xl hover:bg-slate-900 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group border border-slate-700/50"
+        title={t.results.checkProduct}
+      >
+        <ScanLine size={24} className="group-hover:text-rose-400 transition-colors" />
+        <span className="font-bold text-sm pr-1 hidden sm:inline">{t.productCheck.title}</span>
+      </button>
+
     </div>
   );
 };

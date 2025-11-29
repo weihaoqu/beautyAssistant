@@ -1,4 +1,6 @@
 
+export type Language = 'en' | 'zh';
+
 export interface SkinAnalysis {
   skin_type: string;
   skin_tone: string;
@@ -66,6 +68,17 @@ export interface ConcernExplanation {
   why_it_occurs: string;
   management_tips: string[];
   ingredients_to_look_for: string[];
+}
+
+export interface ProductSuitability {
+  product_name: string;
+  brand: string;
+  suitability_score: number;
+  verdict: 'Excellent Match' | 'Good' | 'Fair' | 'Not Recommended' | 'Caution';
+  reasoning: string;
+  ingredients_analysis: string;
+  quantity_to_buy: string;
+  usage_instructions: string;
 }
 
 export interface StoredScan {
