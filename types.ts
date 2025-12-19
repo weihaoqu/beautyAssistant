@@ -1,6 +1,9 @@
 
+
 export type Language = 'en' | 'zh';
-export type ModelType = 'gemini-2.5-flash' | 'gemini-3-flash-preview';
+// Updated model names to use valid identifiers as per guide
+export type ModelType = 'gemini-flash-latest' | 'gemini-3-flash-preview';
+export type AppMode = 'solo' | 'versus';
 
 export interface SkinAnalysis {
   skin_type: string;
@@ -47,6 +50,19 @@ export interface AnalysisState {
   isLoading: boolean;
   error: string | null;
   result: AnalysisResult | null;
+}
+
+export interface VersusReport {
+  battle_summary: string;
+  categories: {
+    category_name: string;
+    winner: 'Player 1' | 'Player 2' | 'Draw';
+    reason: string;
+    p1_status: string;
+    p2_status: string;
+  }[];
+  overall_glow_winner: 'Player 1' | 'Player 2' | 'Draw';
+  final_verdict: string;
 }
 
 export type ProductTier = 'Gold' | 'Silver' | 'Bronze';

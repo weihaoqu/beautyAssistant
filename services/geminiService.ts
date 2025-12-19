@@ -1,23 +1,23 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AnalysisResult, SpecificProduct, ConcernExplanation, ProductSuitability, Language, ModelType } from "../types";
+
+
+import { GoogleGenAI, Type } from "@google/genai";
+import { AnalysisResult, SpecificProduct, ConcernExplanation, ProductSuitability, Language, ModelType, VersusReport } from "../types";
 import { getTranslation } from "../utils/translations";
 
-const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize ai client using the correct named parameter as per guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const analysisSchema: Schema = {
+// Existing analysisSchema...
+const analysisSchema = {
   type: Type.OBJECT,
   properties: {
     skin_analysis: {
       type: Type.OBJECT,
       properties: {
-        skin_type: { type: Type.STRING, description: "e.g., Oily, Dry, Combination, Sensitive" },
-        skin_tone: { type: Type.STRING, description: "Brief description of skin tone" },
-        concerns: { 
-          type: Type.ARRAY, 
-          items: { type: Type.STRING },
-          description: "List of visible concerns like Acne, Wrinkles, Dark Circles, etc." 
-        },
-        summary: { type: Type.STRING, description: "A friendly 1-2 sentence overview of the skin health." }
+        skin_type: { type: Type.STRING },
+        skin_tone: { type: Type.STRING },
+        concerns: { type: Type.ARRAY, items: { type: Type.STRING } },
+        summary: { type: Type.STRING }
       },
       required: ["skin_type", "concerns", "summary"],
     },
@@ -26,19 +26,18 @@ const analysisSchema: Schema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          zone: { type: Type.STRING, description: "The face area: Forehead, Nose, Cheeks, Chin, Eye Area" },
-          condition: { type: Type.STRING, description: "Specific condition observed in this area (e.g., 'Fine lines', 'Dark circles', 'Enlarged pores')" },
-          severity: { type: Type.STRING, enum: ["High", "Medium", "Low", "None"], description: "Severity of the concern in this zone." }
+          zone: { type: Type.STRING },
+          condition: { type: Type.STRING },
+          severity: { type: Type.STRING, enum: ["High", "Medium", "Low", "None"] }
         },
         required: ["zone", "condition", "severity"]
-      },
-      description: "Detailed analysis of specific face zones including Eye Area."
+      }
     },
     hair_analysis: {
       type: Type.OBJECT,
       properties: {
-        hair_type: { type: Type.STRING, description: "e.g., Straight, Wavy, Curly, Coily" },
-        condition: { type: Type.STRING, description: "e.g., Dry, Oily, Damaged, Healthy" },
+        hair_type: { type: Type.STRING },
+        condition: { type: Type.STRING },
         concerns: { type: Type.ARRAY, items: { type: Type.STRING } }
       },
       required: ["hair_type", "condition"],
@@ -48,11 +47,11 @@ const analysisSchema: Schema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          category: { type: Type.STRING, description: "e.g., Cleanser, Moisturizer, Serum, Eye Cream" },
-          product_type: { type: Type.STRING, description: "Generic product name, e.g., 'Retinol Eye Cream'" },
-          suggestion: { type: Type.STRING, description: "Why this is recommended." },
+          category: { type: Type.STRING },
+          product_type: { type: Type.STRING },
+          suggestion: { type: Type.STRING },
           key_ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
-          usage_frequency: { type: Type.STRING, description: "e.g., Daily AM/PM, Weekly" }
+          usage_frequency: { type: Type.STRING }
         },
         required: ["category", "product_type", "suggestion", "key_ingredients", "usage_frequency"],
       }
@@ -62,193 +61,199 @@ const analysisSchema: Schema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          category: { type: Type.STRING, description: "Category: Diet, Hydration, Sleep, Stress Management, or General" },
-          title: { type: Type.STRING, description: "Short punchy title, e.g., 'Hydrate Deeply'" },
-          details: { type: Type.STRING, description: "Actionable advice in 1-2 sentences." }
+          category: { type: Type.STRING },
+          title: { type: Type.STRING },
+          details: { type: Type.STRING }
         },
         required: ["category", "title", "details"]
-      },
-      description: "List of 5 diverse lifestyle tips covering diet, hydration, sleep, and stress management."
+      }
     }
   },
   required: ["skin_analysis", "face_map", "hair_analysis", "recommendations", "lifestyle_suggestions"],
 };
 
-export const analyzeImage = async (base64Image: string, language: Language = 'en', model: ModelType = 'gemini-2.5-flash'): Promise<AnalysisResult> => {
+// Updated default model to gemini-3-flash-preview as per recommendations for basic tasks
+export const analyzeImage = async (base64Image: string, language: Language = 'en', model: ModelType = 'gemini-3-flash-preview'): Promise<AnalysisResult> => {
   const t = getTranslation(language);
-  
   try {
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
-    const langInstruction = language === 'zh' 
-      ? "Provide the response strictly in Simplified Chinese (简体中文)." 
-      : "Provide the response strictly in English.";
+    const langInstruction = language === 'zh' ? "Provide response in Simplified Chinese." : "Provide response in English.";
 
-    const response = await genAI.models.generateContent({
+    // Using ai.models.generateContent with the model name and contents
+    const response = await ai.models.generateContent({
       model: model,
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: cleanBase64
-            }
-          },
-          {
-            text: `Analyze this photo for a beauty consultation. Assess the skin health (type, concerns) and hair condition. 
-            
-            CRITICAL: You must include a distinct analysis for the "Eye Area" in the face_map (checking for dark circles, puffiness, fine lines, or crow's feet).
-            
-            Break down the analysis by face zones (Forehead, Nose, Cheeks, Chin, Eye Area) identifying specific conditions and severity. Provide specific product recommendations (including eye care if needed) and diverse lifestyle suggestions. Be professional, kind, and helpful. ${langInstruction} Output strictly JSON.`
-          }
+          { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
+          { text: `Analyze skin and hair health. Include "Eye Area". Be professional. ${langInstruction} Output strictly JSON.` }
         ]
       },
       config: {
         responseMimeType: "application/json",
         responseSchema: analysisSchema,
-        systemInstruction: `You are an expert dermatologist and hair stylist AI assistant. Provide helpful, safe, and generally accepted beauty advice based on visual analysis. ${langInstruction}`,
       }
     });
 
-    if (!response.text) {
-      throw new Error("No response from AI");
-    }
-
-    const result = JSON.parse(response.text) as AnalysisResult;
-    return result;
-
+    if (!response.text) throw new Error("No response from AI");
+    return JSON.parse(response.text) as AnalysisResult;
   } catch (error: any) {
-    console.error("Gemini Analysis Error:", error);
-    const msg = (error.message || '').toLowerCase();
-    if (msg.includes('429') || msg.includes('quota')) throw new Error(t.errors.quota);
-    if (msg.includes('safety') || msg.includes('blocked')) throw new Error(t.errors.safety);
-    if (msg.includes('network')) throw new Error(t.errors.network);
+    console.error(error);
     throw new Error(t.errors.generic);
   }
 };
 
-const specificProductSchema: Schema = {
+const versusSchema = {
   type: Type.OBJECT,
   properties: {
-    recommendations: {
+    battle_summary: { type: Type.STRING },
+    categories: {
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
         properties: {
-          tier: { type: Type.STRING, enum: ["Gold", "Silver", "Bronze"] },
-          brand: { type: Type.STRING },
-          product_name: { type: Type.STRING },
-          price_estimate: { type: Type.STRING, description: "e.g., $45" },
-          reason: { type: Type.STRING, description: "Why this specific product matches the user's needs." },
-          product_link: { type: Type.STRING, description: "A valid Google Search URL for this specific product, e.g., 'https://www.google.com/search?q=Brand+Product+Name'" },
-          key_ingredients: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of 2-3 main active ingredients in this specific product." },
-          usage_frequency: { type: Type.STRING, description: "e.g. 'Use daily in AM', 'Use 2x week'" },
-          image_url: { type: Type.STRING, description: "A publicly accessible image URL for the product if widely known (e.g. from wikimedia or standard brand assets), otherwise return empty string." }
+          category_name: { type: Type.STRING },
+          winner: { type: Type.STRING, enum: ["Player 1", "Player 2", "Draw"] },
+          reason: { type: Type.STRING },
+          p1_status: { type: Type.STRING },
+          p2_status: { type: Type.STRING }
         },
-        required: ["tier", "brand", "product_name", "price_estimate", "reason", "product_link", "key_ingredients", "usage_frequency"]
+        required: ["category_name", "winner", "reason", "p1_status", "p2_status"]
       }
-    }
+    },
+    overall_glow_winner: { type: Type.STRING, enum: ["Player 1", "Player 2", "Draw"] },
+    final_verdict: { type: Type.STRING }
+  },
+  required: ["battle_summary", "categories", "overall_glow_winner", "final_verdict"]
+};
+
+export const generateVersusReport = async (
+  p1Result: AnalysisResult,
+  p2Result: AnalysisResult,
+  language: Language = 'en',
+  model: ModelType = 'gemini-3-flash-preview'
+): Promise<VersusReport> => {
+  try {
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese." : "Output strictly in English.";
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: {
+        parts: [
+          {
+            text: `
+              Task: Compare the beauty analysis of two users for a "Glow Battle".
+              Player 1 Data: ${JSON.stringify(p1Result)}
+              Player 2 Data: ${JSON.stringify(p2Result)}
+              
+              Requirements:
+              1. Summarize the comparison in battle_summary.
+              2. Compare across 5 categories (e.g. Skin Clarity, Eye Area Health, Hair Vitality, Hydration Levels, Overall Texture).
+              3. For each category, pick a winner and explain why.
+              4. Give a final "Glow Winner".
+              5. Keep it fun, competitive, yet health-focused.
+              ${langInstruction}
+              Output strictly JSON.
+            `
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: versusSchema
+      }
+    });
+
+    if (!response.text) throw new Error("No response");
+    return JSON.parse(response.text) as VersusReport;
+  } catch (error) {
+    console.error("Versus Error:", error);
+    throw new Error("Failed to generate versus report.");
+  }
+};
+
+/**
+ * Common schema for specific product recommendations
+ */
+const specificProductSchema = {
+  type: Type.ARRAY,
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      tier: { type: Type.STRING, enum: ["Gold", "Silver", "Bronze"] },
+      brand: { type: Type.STRING },
+      product_name: { type: Type.STRING },
+      price_estimate: { type: Type.STRING },
+      reason: { type: Type.STRING },
+      product_link: { type: Type.STRING },
+      key_ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+      usage_frequency: { type: Type.STRING },
+      image_url: { type: Type.STRING }
+    },
+    required: ["tier", "brand", "product_name", "price_estimate", "reason", "product_link", "key_ingredients", "usage_frequency"]
   }
 };
 
 export const getSpecificProductRecommendations = async (
   productType: string,
-  userContext: string,
+  context: string,
   budget: string,
   language: Language = 'en',
-  model: ModelType = 'gemini-2.5-flash'
+  model: ModelType = 'gemini-3-flash-preview'
 ): Promise<SpecificProduct[]> => {
   try {
-    const langInstruction = language === 'zh' 
-      ? "Ensure all text fields are in Simplified Chinese (简体中文)." 
-      : "Ensure all text fields are in English.";
-
-    const response = await genAI.models.generateContent({
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese." : "Output strictly in English.";
+    const response = await ai.models.generateContent({
       model: model,
       contents: {
-        parts: [
-          {
-            text: `
-              Task: Recommend 3 specific commercial beauty products for the category: "${productType}".
-              User Context (Skin/Hair Profile): ${userContext}
-              Budget Constraint: ${budget}
-              
-              Brand Guidance & Budget Tiers:
-              - Luxury/High-End ($100+): La Mer, La Prairie, Helena Rubinstein (HR), SK-II, Sisley, Augustinus Bader.
-              - Premium ($50-$100): Lancôme, Estée Lauder, Shiseido, Aveda (Hair), Kérastase (Hair), Oribe.
-              - Mid-Range ($30-$60): Kiehl's, Clinique, Origins, Clarins, Dr. Jart+, Briogeo.
-              - Budget/Accessible ($10-$30): The Ordinary, CeraVe, La Roche-Posay, Neutrogena, Inkey List.
-              
-              Requirements:
-              1. Provide 3 tiers: Gold (Premium), Silver (Value), Bronze (Budget).
-              2. Strict Budget Handling.
-              3. Include estimated price.
-              4. Include a Google Search link for the product.
-              5. Include key ingredients and usage frequency.
-              6. If you know a valid public image URL, include it.
-              7. Return purely JSON.
-              8. ${langInstruction}
-            `
-          }
-        ]
+        parts: [{
+          text: `Find specific beauty product recommendations for: ${productType}. 
+          User Context: ${context}. 
+          Budget target: ${budget}. 
+          Provide 3 products (Gold, Silver, Bronze tiers). Gold is high-end/best, Bronze is budget-friendly. 
+          ${langInstruction} Output strictly JSON.`
+        }]
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: specificProductSchema,
+        responseSchema: specificProductSchema
       }
     });
-
-    if (!response.text) {
-      throw new Error("No response from AI");
-    }
-    const data = JSON.parse(response.text);
-    return data.recommendations || [];
+    return JSON.parse(response.text || "[]");
   } catch (error) {
-    console.error("Gemini Product Rec Error:", error);
-    throw new Error("Failed to fetch specific recommendations.");
+    console.error("Product Search Error:", error);
+    return [];
   }
 };
 
 export const getBrandRecommendations = async (
   brand: string,
-  userContext: string,
+  context: string,
   language: Language = 'en',
-  model: ModelType = 'gemini-2.5-flash'
+  model: ModelType = 'gemini-3-flash-preview'
 ): Promise<SpecificProduct[]> => {
   try {
-    const langInstruction = language === 'zh' 
-      ? "Ensure all text fields are in Simplified Chinese (简体中文)." 
-      : "Ensure all text fields are in English.";
-
-    const response = await genAI.models.generateContent({
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese." : "Output strictly in English.";
+    const response = await ai.models.generateContent({
       model: model,
       contents: {
-        parts: [
-          {
-            text: `
-              Task: Recommend the top 3 best-suited products specifically from the brand "${brand}" for a user with this profile: "${userContext}".
-              Requirements: Return purely JSON matching the schema. ${langInstruction}
-            `
-          }
-        ]
+        parts: [{
+          text: `Recommend exactly 3 specific products from the brand "${brand}" that best suit this profile: ${context}.
+          Assign them Gold, Silver, Bronze tiers based on effectiveness and popularity.
+          ${langInstruction} Output strictly JSON.`
+        }]
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: specificProductSchema,
+        responseSchema: specificProductSchema
       }
     });
-
-    if (!response.text) {
-      throw new Error("No response from AI");
-    }
-    const data = JSON.parse(response.text);
-    return data.recommendations || [];
+    return JSON.parse(response.text || "[]");
   } catch (error) {
-    console.error("Gemini Brand Rec Error:", error);
-    throw new Error("Failed to fetch brand recommendations.");
+    console.error("Brand Search Error:", error);
+    return [];
   }
 };
 
-const concernExplanationSchema: Schema = {
+const concernExplanationSchema = {
   type: Type.OBJECT,
   properties: {
     concern_name: { type: Type.STRING },
@@ -262,42 +267,41 @@ const concernExplanationSchema: Schema = {
 
 export const getConcernExplanation = async (
   concern: string,
-  userContext: string,
+  context: string,
   language: Language = 'en',
-  model: ModelType = 'gemini-2.5-flash'
-): Promise<ConcernExplanation> => {
+  model: ModelType = 'gemini-3-flash-preview'
+): Promise<ConcernExplanation | null> => {
   try {
-    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese (简体中文)." : "Output strictly in English.";
-    const response = await genAI.models.generateContent({
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese." : "Output strictly in English.";
+    const response = await ai.models.generateContent({
       model: model,
       contents: {
-        parts: [
-          {
-            text: `Create content for an infographic explaining: "${concern}" for profile: "${userContext}". Return JSON only. ${langInstruction}`
-          }
-        ]
+        parts: [{
+          text: `Explain this skin/hair concern: ${concern}. 
+          User Context: ${context}. 
+          Provide detailed explanation, root causes, tips, and ingredients.
+          ${langInstruction} Output strictly JSON.`
+        }]
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: concernExplanationSchema,
+        responseSchema: concernExplanationSchema
       }
     });
-
-    if (!response.text) throw new Error("No response");
-    return JSON.parse(response.text) as ConcernExplanation;
+    return JSON.parse(response.text || "{}");
   } catch (error) {
-    console.error("Gemini Concern Explanation Error:", error);
-    throw new Error("Failed to fetch concern details.");
+    console.error("Concern Explanation Error:", error);
+    return null;
   }
 };
 
-const productSuitabilitySchema: Schema = {
+const productSuitabilitySchema = {
   type: Type.OBJECT,
   properties: {
     product_name: { type: Type.STRING },
     brand: { type: Type.STRING },
-    suitability_score: { type: Type.INTEGER },
-    verdict: { type: Type.STRING, enum: ["Excellent Match", "Good", "Fair", "Caution", "Not Recommended"] },
+    suitability_score: { type: Type.NUMBER },
+    verdict: { type: Type.STRING, enum: ["Excellent Match", "Good", "Fair", "Not Recommended", "Caution"] },
     reasoning: { type: Type.STRING },
     ingredients_analysis: { type: Type.STRING },
     quantity_to_buy: { type: Type.STRING },
@@ -307,32 +311,33 @@ const productSuitabilitySchema: Schema = {
 };
 
 export const analyzeProductSuitability = async (
-  productImageBase64: string,
+  productBase64: string,
   userProfile: string,
   language: Language = 'en',
-  model: ModelType = 'gemini-2.5-flash'
+  model: ModelType = 'gemini-3-flash-preview'
 ): Promise<ProductSuitability> => {
   try {
-    const cleanBase64 = productImageBase64.split(',')[1] || productImageBase64;
-    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese (简体中文)." : "Output strictly in English.";
-    const response = await genAI.models.generateContent({
+    const cleanBase64 = productBase64.split(',')[1] || productBase64;
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese." : "Output strictly in English.";
+    const response = await ai.models.generateContent({
       model: model,
       contents: {
         parts: [
           { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
-          { text: `Identify this product and analyze suitability for profile: "${userProfile}". ${langInstruction} Output purely JSON.` }
+          { text: `Identify this beauty product and determine its suitability for a user with this profile: ${userProfile}. 
+          Analyze the ingredients on the label. Provide score (0-100), verdict, reasoning, and usage tips. 
+          ${langInstruction} Output strictly JSON.` }
         ]
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: productSuitabilitySchema,
+        responseSchema: productSuitabilitySchema
       }
     });
-
-    if (!response.text) throw new Error("No response");
-    return JSON.parse(response.text) as ProductSuitability;
+    if (!response.text) throw new Error("Suitability analysis failed");
+    return JSON.parse(response.text);
   } catch (error) {
-    console.error("Gemini Product Suitability Error:", error);
-    throw new Error("Failed to analyze product.");
+    console.error("Suitability Error:", error);
+    throw error;
   }
 };

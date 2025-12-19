@@ -1,348 +1,237 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { Sparkles, ScanFace, Download, History as HistoryIcon, Globe, TrendingUp, ScanLine, Cpu, Terminal } from 'lucide-react';
+import { Sparkles, ScanFace, Download, History as HistoryIcon, Globe, TrendingUp, ScanLine, Cpu, Terminal, Swords, User, AlertCircle } from 'lucide-react';
 import { ImageUploader } from './components/ImageUploader';
 import { AnalysisResults } from './components/AnalysisResults';
+import { VersusArena } from './components/VersusArena';
+import { VersusResults } from './components/VersusResults';
 import { InstallPwaModal } from './components/InstallPwaModal';
 import { HistoryModal } from './components/HistoryModal';
 import { ProgressTracker } from './components/ProgressTracker';
 import { LanguageSelector } from './components/LanguageSelector';
 import { ProductScannerModal } from './components/ProductScannerModal';
 import { PromptModal } from './components/PromptModal';
-import { analyzeImage } from './services/geminiService';
+import { analyzeImage, generateVersusReport } from './services/geminiService';
 import { saveScan, getHistory } from './services/storageService';
-import { AnalysisResult, StoredScan, Language, ModelType } from './types';
+import { AnalysisResult, StoredScan, Language, ModelType, AppMode, VersusReport } from './types';
 import { getTranslation } from './utils/translations';
 
 const App: React.FC = () => {
-  // Initialize language from localStorage or default to 'en'
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('glowai_lang');
     return (saved === 'en' || saved === 'zh') ? saved : 'en';
   });
 
-  // Initialize model from localStorage or default
+  // Updated state initialization to handle valid ModelType identifiers
   const [model, setModel] = useState<ModelType>(() => {
     const saved = localStorage.getItem('glowai_model');
-    return (saved === 'gemini-2.5-flash' || saved === 'gemini-3-flash-preview') ? saved : 'gemini-2.5-flash';
+    return (saved === 'gemini-flash-latest' || saved === 'gemini-3-flash-preview') ? (saved as ModelType) : 'gemini-3-flash-preview';
   });
 
-  // Determine if the user has explicitly selected a language before
-  const [hasSelectedLanguage, setHasSelectedLanguage] = useState<boolean>(() => {
-    return !!localStorage.getItem('glowai_lang');
-  });
+  const [hasSelectedLanguage, setHasSelectedLanguage] = useState<boolean>(() => !!localStorage.getItem('glowai_lang'));
+  const [mode, setMode] = useState<AppMode>('solo');
 
+  // Solo State
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [userImage, setUserImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Versus State
+  const [p1Image, setP1Image] = useState<string | null>(null);
+  const [p2Image, setP2Image] = useState<string | null>(null);
+  const [p1Result, setP1Result] = useState<AnalysisResult | null>(null);
+  const [p2Result, setP2Result] = useState<AnalysisResult | null>(null);
+  const [versusReport, setVersusReport] = useState<VersusReport | null>(null);
+  const [isP1Loading, setIsP1Loading] = useState(false);
+  const [isP2Loading, setIsP2Loading] = useState(false);
+  const [isBattleLoading, setIsBattleLoading] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
-  // PWA State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [showInstallModal, setShowInstallModal] = useState(false);
-  
   // Modals & Features State
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [isProductScannerOpen, setIsProductScannerOpen] = useState(false);
-
-  // Context for Scanner
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [latestProfile, setLatestProfile] = useState<string>("");
 
   const t = getTranslation(language);
 
   useEffect(() => {
-    // Check if running on iOS
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
     setIsIOS(ios);
-
-    // Check if already installed
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     setIsStandalone(standalone);
-
-    // Capture install prompt for Android/Chrome
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  // Fetch latest history on mount for context
-  useEffect(() => {
     getHistory().then(scans => {
       if (scans.length > 0) {
         const latest = scans[0].result;
-        const summary = `Skin Type: ${latest.skin_analysis.skin_type}, Concerns: ${latest.skin_analysis.concerns.join(', ')}.`;
-        setLatestProfile(summary);
+        setLatestProfile(`Skin Type: ${latest.skin_analysis.skin_type}, Concerns: ${latest.skin_analysis.concerns.join(', ')}.`);
       }
     });
   }, []);
-
-  const handleInstallClick = () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult: any) => {
-        if (choiceResult.outcome === 'accepted') {
-          setDeferredPrompt(null);
-        }
-      });
-    } else {
-      // Fallback for iOS or manual install instructions
-      setShowInstallModal(true);
-    }
-  };
 
   const handleImageSelected = async (base64: string) => {
     setIsLoading(true);
     setError(null);
     setUserImage(base64);
     try {
-      const analysisData = await analyzeImage(base64, language, model);
-      setResult(analysisData);
-      
-      // Auto-save to history
-      saveScan(base64, analysisData).then(() => {
-        // Update local context immediately after new scan
-        setLatestProfile(`Skin Type: ${analysisData.skin_analysis.skin_type}, Concerns: ${analysisData.skin_analysis.concerns.join(', ')}.`);
-      }).catch(err => console.error("Failed to save history:", err));
-      
+      const data = await analyzeImage(base64, language, model);
+      setResult(data);
+      saveScan(base64, data);
+      setLatestProfile(`Skin Type: ${data.skin_analysis.skin_type}, Concerns: ${data.skin_analysis.concerns.join(', ')}.`);
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+      setError(err.message || "Failed to analyze.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleP1Selected = async (base64: string) => {
+    setIsP1Loading(true);
+    setP1Image(base64);
+    try {
+      const data = await analyzeImage(base64, language, model);
+      setP1Result(data);
+    } catch (err) {
+      setError("P1 analysis failed.");
+    } finally {
+      setIsP1Loading(false);
+    }
+  };
+
+  const handleP2Selected = async (base64: string) => {
+    setIsP2Loading(true);
+    setP2Image(base64);
+    try {
+      const data = await analyzeImage(base64, language, model);
+      setP2Result(data);
+    } catch (err) {
+      setError("P2 analysis failed.");
+    } finally {
+      setIsP2Loading(false);
+    }
+  };
+
+  const handleStartBattle = async () => {
+    if (!p1Result || !p2Result) return;
+    setIsBattleLoading(true);
+    try {
+      const report = await generateVersusReport(p1Result, p2Result, language, model);
+      setVersusReport(report);
+    } catch (err) {
+      setError("Battle comparison failed.");
+    } finally {
+      setIsBattleLoading(false);
     }
   };
 
   const handleReset = () => {
     setResult(null);
     setUserImage(null);
+    setP1Image(null);
+    setP2Image(null);
+    setP1Result(null);
+    setP2Result(null);
+    setVersusReport(null);
     setError(null);
   };
 
-  const handleLoadScan = (scan: StoredScan) => {
-    setResult(scan.result);
-    setUserImage(scan.image);
-    setError(null);
-    setShowHistory(false);
-  };
-
-  const toggleLanguage = () => {
-    const newLang = language === 'en' ? 'zh' : 'en';
-    setLanguage(newLang);
-    localStorage.setItem('glowai_lang', newLang);
-  };
-
-  const toggleModel = () => {
-    const newModel = model === 'gemini-2.5-flash' ? 'gemini-3-flash-preview' : 'gemini-2.5-flash';
-    setModel(newModel);
-    localStorage.setItem('glowai_model', newModel);
-  };
-
-  const handleInitialLanguageSelect = (lang: Language) => {
-    setLanguage(lang);
-    setHasSelectedLanguage(true);
-    localStorage.setItem('glowai_lang', lang);
+  const toggleMode = () => {
+    handleReset();
+    setMode(prev => prev === 'solo' ? 'versus' : 'solo');
   };
 
   if (!hasSelectedLanguage) {
-    return <LanguageSelector onSelect={handleInitialLanguageSelect} />;
+    return <LanguageSelector onSelect={(l) => { setLanguage(l); setHasSelectedLanguage(true); localStorage.setItem('glowai_lang', l); }} />;
   }
 
-  // Determine current context for scanner
-  const currentContext = result 
-    ? `Skin Type: ${result.skin_analysis.skin_type}, Concerns: ${result.skin_analysis.concerns.join(', ')}.`
-    : (latestProfile || "General Skin Analysis - No specific user profile loaded.");
-
   return (
-    <div className="min-h-screen pb-12 animate-fade-in relative">
+    <div className="min-h-screen pb-12 animate-fade-in relative bg-white selection:bg-rose-200">
+      {/* Modals Integrated */}
       {showInstallModal && <InstallPwaModal onClose={() => setShowInstallModal(false)} isIOS={isIOS} language={language} />}
-      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadScan={handleLoadScan} language={language} />}
+      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadScan={(s) => { setResult(s.result); setUserImage(s.image); setShowHistory(false); setMode('solo'); }} language={language} />}
       {showProgress && <ProgressTracker onClose={() => setShowProgress(false)} language={language} />}
       {showPromptModal && <PromptModal onClose={() => setShowPromptModal(false)} language={language} />}
-      {isProductScannerOpen && (
-        <ProductScannerModal 
-          userProfileSummary={currentContext}
-          onClose={() => setIsProductScannerOpen(false)}
-          language={language}
-          model={model}
-        />
-      )}
-      
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+      {isProductScannerOpen && <ProductScannerModal userProfileSummary={result ? `Skin: ${result.skin_analysis.skin_type}` : latestProfile} onClose={() => setIsProductScannerOpen(false)} language={language} model={model} />}
+
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-rose-500 cursor-pointer" onClick={handleReset}>
-            <ScanFace size={28} />
-            <span className="font-bold text-xl tracking-tight text-slate-800">{t.appTitle}<span className="text-rose-500">AI</span></span>
+          <div className="flex items-center gap-2 text-rose-500 cursor-pointer group" onClick={handleReset}>
+            <div className="p-1.5 bg-rose-50 rounded-lg group-hover:bg-rose-500 group-hover:text-white transition-all">
+               <ScanFace size={24} />
+            </div>
+            <span className="font-black text-xl tracking-tighter text-slate-800 uppercase italic">Glow<span className="text-rose-500">AI</span></span>
           </div>
           
-          <div className="flex items-center gap-2 md:gap-3">
-             {/* New View Prompt Button */}
-             <button
-              onClick={() => setShowPromptModal(true)}
-              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
-              title={t.viewPrompt}
-            >
-              <Terminal size={20} />
-              <span className="hidden lg:inline text-xs font-mono font-bold uppercase tracking-widest">{t.viewPrompt}</span>
-            </button>
+          <div className="flex items-center gap-1 md:gap-3">
+            {/* Mode Toggle */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center mr-2 shadow-inner">
+               <button 
+                 onClick={() => mode !== 'solo' && toggleMode()}
+                 className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 ${mode === 'solo' ? 'bg-white shadow-sm text-rose-500' : 'text-slate-500 hover:text-slate-800'}`}
+               >
+                 <User size={14} /> {t.soloMode}
+               </button>
+               <button 
+                 onClick={() => mode !== 'versus' && toggleMode()}
+                 className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 ${mode === 'versus' ? 'bg-white shadow-sm text-indigo-500' : 'text-slate-500 hover:text-slate-800'}`}
+               >
+                 <Swords size={14} /> {t.versusMode}
+               </button>
+            </div>
 
-             <button
-              onClick={toggleModel}
-              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
-              title="Switch Model"
-            >
-              <Cpu size={20} />
-              <span className="hidden md:inline text-xs font-mono font-medium">{model === 'gemini-2.5-flash' ? 'v2.5' : 'v3.0'}</span>
-            </button>
-
-             <button
-              onClick={toggleLanguage}
-              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
-              title="Switch Language"
-            >
-              <Globe size={20} />
-              <span className="text-sm font-medium uppercase">{language}</span>
-            </button>
-
-            <button
-              onClick={() => setShowProgress(true)}
-              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
-              title={t.progress.title}
-            >
-               <TrendingUp size={20} />
-               <span className="hidden sm:inline text-sm font-medium">{t.progress.title}</span>
-            </button>
-
-            {!isStandalone && (
-              <button 
-                onClick={handleInstallClick}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-              >
-                <Download size={16} />
-                {t.install}
-              </button>
-            )}
-            
-            <button
-              onClick={() => setShowHistory(true)}
-              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
-              title={t.history.title}
-            >
-              <HistoryIcon size={20} />
-              <span className="hidden sm:inline text-sm font-medium">{t.history.title}</span>
-            </button>
-
-            {/* Mobile Icon Button for Install */}
-            {!isStandalone && (
-              <button 
-                onClick={handleInstallClick}
-                className="sm:hidden p-2 text-slate-600 hover:text-rose-500 transition-colors"
-                aria-label="Install App"
-              >
-                <Download size={20} />
-              </button>
-            )}
-
-            {result && (
-              <button 
-                onClick={handleReset}
-                className="text-sm font-medium text-slate-600 hover:text-rose-500 transition-colors ml-1"
-              >
-                {t.newAnalysis}
-              </button>
-            )}
+            <button onClick={() => setShowPromptModal(true)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors" title={t.viewPrompt}><Terminal size={20} /></button>
+            {/* Updated model toggle to switch between flash-latest and 3-flash-preview */}
+            <button onClick={() => setModel(m => m === 'gemini-flash-latest' ? 'gemini-3-flash-preview' : 'gemini-flash-latest')} className="p-2 text-slate-400 hover:text-rose-500 transition-colors hidden sm:flex items-center gap-1"><Cpu size={18} /><span className="text-[10px] font-mono font-bold uppercase tracking-widest">{model === 'gemini-flash-latest' ? 'FLASH' : '3.0'}</span></button>
+            <button onClick={() => setShowProgress(true)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors"><TrendingUp size={20} /></button>
+            <button onClick={() => setShowHistory(true)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors"><HistoryIcon size={20} /></button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 pt-12">
-        {!result ? (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
-            <div className="text-center mb-10 max-w-2xl">
-              <div className="inline-flex items-center justify-center p-2 bg-rose-50 text-rose-600 rounded-full mb-4 px-4 text-sm font-semibold border border-rose-100">
-                <Sparkles size={16} className="mr-2" />
-                AI-Powered Beauty Consultant
+      <main className="pt-12">
+        {mode === 'solo' ? (
+          !result ? (
+            <div className="flex flex-col items-center px-4">
+              <div className="text-center mb-10 max-w-2xl animate-fade-in-up">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 text-rose-600 rounded-full font-bold text-xs uppercase tracking-widest mb-6 border border-rose-100">
+                  <Sparkles size={14} /> AI Beauty Intelligence
+                </div>
+                <h1 className="text-5xl md:text-6xl font-black text-slate-800 mb-6 leading-[0.9] tracking-tighter uppercase italic">
+                  {t.heroTitle1} <br/>
+                  <span className="text-rose-500">{t.heroTitle2}</span>
+                </h1>
+                <p className="text-lg text-slate-400 font-medium">{t.heroSubtitle}</p>
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold text-slate-800 mb-6 leading-tight">
-                {t.heroTitle1} <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-teal-500">{t.heroTitle2}</span>
-              </h1>
-              <p className="text-lg text-slate-500 mb-8">
-                {t.heroSubtitle}
-              </p>
+              <ImageUploader onImageSelected={handleImageSelected} isLoading={isLoading} language={language} onError={setError} />
+              {error && <div className="mt-8 p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100 text-sm font-bold flex items-center gap-2"><AlertCircle size={18} />{error}</div>}
             </div>
-            
-            <ImageUploader 
-              onImageSelected={handleImageSelected} 
-              isLoading={isLoading} 
-              language={language}
-              onError={setError}
-            />
-
-            {/* Prominent Install Button for Main Page */}
-            {!isStandalone && (
-              <div className="mt-8 animate-fade-in-up">
-                <button 
-                  onClick={handleInstallClick}
-                  className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-full text-sm font-medium hover:bg-slate-50 hover:border-rose-200 hover:text-rose-600 transition-all shadow-sm group"
-                >
-                  <Download size={18} className="text-slate-400 group-hover:text-rose-500 transition-colors" />
-                  {t.install}
-                </button>
-              </div>
-            )}
-
-            {error && (
-              <div className="mt-8 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg max-w-md text-center">
-                {error}
-              </div>
-            )}
-            
-            <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center opacity-60">
-              <div>
-                <h4 className="font-bold text-slate-800 mb-2">{t.steps.analyze.title}</h4>
-                <p className="text-sm">{t.steps.analyze.desc}</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-800 mb-2">{t.steps.recommend.title}</h4>
-                <p className="text-sm">{t.steps.recommend.desc}</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-800 mb-2">{t.steps.improve.title}</h4>
-                <p className="text-sm">{t.steps.improve.desc}</p>
-              </div>
-            </div>
-          </div>
+          ) : (
+            <AnalysisResults result={result} userImage={userImage} onReset={handleReset} language={language} model={model} onOpenProductScanner={() => setIsProductScannerOpen(true)} />
+          )
         ) : (
-          <AnalysisResults 
-             result={result} 
-             userImage={userImage} 
-             onReset={handleReset} 
-             language={language} 
-             model={model}
-             onOpenProductScanner={() => setIsProductScannerOpen(true)}
-          />
+          !versusReport ? (
+            <VersusArena 
+               p1Image={p1Image} p2Image={p2Image} onP1Selected={handleP1Selected} onP2Selected={handleP2Selected} onStartBattle={handleStartBattle}
+               isP1Loading={isP1Loading} isP2Loading={isP2Loading} isBattleLoading={isBattleLoading} language={language} 
+            />
+          ) : (
+            p1Result && p2Result && <VersusResults report={versusReport} p1Image={p1Image} p2Image={p2Image} p1Result={p1Result} p2Result={p2Result} onReset={handleReset} language={language} />
+          )
         )}
       </main>
 
-      {/* Floating Action Button for Product Scanner (Visible Everywhere) */}
       <button
         onClick={() => setIsProductScannerOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-slate-800 text-white p-4 rounded-full shadow-2xl hover:bg-slate-900 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 group border border-slate-700/50"
-        title={t.results.checkProduct}
+        className="fixed bottom-6 right-6 z-40 bg-slate-800 text-white p-4 rounded-full shadow-2xl hover:bg-slate-900 transition-all hover:scale-110 active:scale-95 flex items-center justify-center gap-2 group border border-slate-700"
       >
         <ScanLine size={24} className="group-hover:text-rose-400 transition-colors" />
-        <span className="font-bold text-sm pr-1 hidden sm:inline">{t.productCheck.title}</span>
+        <span className="font-black text-xs uppercase tracking-widest pr-1 hidden sm:inline">{t.productCheck.title}</span>
       </button>
-
     </div>
   );
 };
