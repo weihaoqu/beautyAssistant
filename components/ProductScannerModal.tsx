@@ -1,21 +1,24 @@
+
 import React, { useState } from 'react';
 import { X, ScanLine, CheckCircle2, AlertTriangle, AlertCircle, ShoppingCart, Clock, Beaker, Share2 } from 'lucide-react';
 import { ImageUploader } from './ImageUploader';
 import { ProductShareModal } from './ProductShareModal';
 import { analyzeProductSuitability } from '../services/geminiService';
-import { ProductSuitability, Language } from '../types';
+import { ProductSuitability, Language, ModelType } from '../types';
 import { getTranslation } from '../utils/translations';
 
 interface ProductScannerModalProps {
   userProfileSummary: string;
   onClose: () => void;
   language: Language;
+  model: ModelType;
 }
 
 export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({ 
   userProfileSummary, 
   onClose, 
-  language 
+  language,
+  model
 }) => {
   const [step, setStep] = useState<'upload' | 'analyzing' | 'result'>('upload');
   const [productImage, setProductImage] = useState<string | null>(null);
@@ -30,7 +33,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
     setError(null);
 
     try {
-      const analysis = await analyzeProductSuitability(base64, userProfileSummary, language);
+      const analysis = await analyzeProductSuitability(base64, userProfileSummary, language, model);
       setResult(analysis);
       setStep('result');
     } catch (err: any) {

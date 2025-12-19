@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, Sparkles, Fingerprint, CheckCircle2, Beaker, Droplet } from 'lucide-react';
-import { ConcernExplanation, Language } from '../types';
+import { ConcernExplanation, Language, ModelType } from '../types';
 import { getConcernExplanation } from '../services/geminiService';
 import { getTranslation } from '../utils/translations';
 
@@ -9,9 +10,10 @@ interface ConcernDetailModalProps {
   contextSummary: string;
   onClose: () => void;
   language: Language;
+  model: ModelType;
 }
 
-export const ConcernDetailModal: React.FC<ConcernDetailModalProps> = ({ concern, contextSummary, onClose, language }) => {
+export const ConcernDetailModal: React.FC<ConcernDetailModalProps> = ({ concern, contextSummary, onClose, language, model }) => {
   const [data, setData] = useState<ConcernExplanation | null>(null);
   const [loading, setLoading] = useState(true);
   const t = getTranslation(language);
@@ -20,7 +22,7 @@ export const ConcernDetailModal: React.FC<ConcernDetailModalProps> = ({ concern,
     const fetchData = async () => {
       setLoading(true);
       try {
-        const result = await getConcernExplanation(concern, contextSummary, language);
+        const result = await getConcernExplanation(concern, contextSummary, language, model);
         setData(result);
       } catch (error) {
         console.error(error);
@@ -29,7 +31,7 @@ export const ConcernDetailModal: React.FC<ConcernDetailModalProps> = ({ concern,
       }
     };
     fetchData();
-  }, [concern, contextSummary, language]);
+  }, [concern, contextSummary, language, model]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-start md:items-center justify-center p-4 pt-20 md:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">

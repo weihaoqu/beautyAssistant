@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { X, Trophy, Award, Medal, Loader2, ExternalLink, ShoppingBag, Info, Search, Sparkles, Clock, Beaker, CheckCircle2 } from 'lucide-react';
-import { SpecificProduct, Language } from '../types';
+import { SpecificProduct, Language, ModelType } from '../types';
 import { getBrandRecommendations } from '../services/geminiService';
 import { getTranslation } from '../utils/translations';
 
@@ -8,6 +9,7 @@ interface BrandRecommendationModalProps {
   contextSummary: string;
   onClose: () => void;
   language: Language;
+  model: ModelType;
 }
 
 const BRANDS = [
@@ -121,7 +123,7 @@ const BrandProductCard: React.FC<{ item: SpecificProduct; index: number; t: any 
   );
 };
 
-export const BrandRecommendationModal: React.FC<BrandRecommendationModalProps> = ({ contextSummary, onClose, language }) => {
+export const BrandRecommendationModal: React.FC<BrandRecommendationModalProps> = ({ contextSummary, onClose, language, model }) => {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [customBrand, setCustomBrand] = useState('');
   const [products, setProducts] = useState<SpecificProduct[]>([]);
@@ -132,7 +134,7 @@ export const BrandRecommendationModal: React.FC<BrandRecommendationModalProps> =
     setSelectedBrand(brand);
     setLoading(true);
     try {
-      const recs = await getBrandRecommendations(brand, contextSummary, language);
+      const recs = await getBrandRecommendations(brand, contextSummary, language, model);
       setProducts(recs);
     } catch (error) {
       console.error(error);

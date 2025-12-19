@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { AnalysisResult, SpecificProduct, ConcernExplanation, ProductSuitability, Language } from "../types";
+import { AnalysisResult, SpecificProduct, ConcernExplanation, ProductSuitability, Language, ModelType } from "../types";
 import { getTranslation } from "../utils/translations";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -74,19 +74,17 @@ const analysisSchema: Schema = {
   required: ["skin_analysis", "face_map", "hair_analysis", "recommendations", "lifestyle_suggestions"],
 };
 
-export const analyzeImage = async (base64Image: string, language: Language = 'en'): Promise<AnalysisResult> => {
+export const analyzeImage = async (base64Image: string, language: Language = 'en', model: ModelType = 'gemini-2.5-flash'): Promise<AnalysisResult> => {
   const t = getTranslation(language);
   
   try {
-    // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
     const cleanBase64 = base64Image.split(',')[1] || base64Image;
-
     const langInstruction = language === 'zh' 
       ? "Provide the response strictly in Simplified Chinese (简体中文)." 
       : "Provide the response strictly in English.";
 
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: model,
       contents: {
         parts: [
           {
@@ -120,23 +118,10 @@ export const analyzeImage = async (base64Image: string, language: Language = 'en
 
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
-    
     const msg = (error.message || '').toLowerCase();
-
-    // Handle specific error codes
-    if (msg.includes('429') || msg.includes('quota') || msg.includes('resource exhausted')) {
-      throw new Error(t.errors.quota);
-    }
-    
-    if (msg.includes('safety') || msg.includes('blocked') || msg.includes('content') || msg.includes('harmful')) {
-      throw new Error(t.errors.safety);
-    }
-    
-    if (msg.includes('network') || msg.includes('fetch failed')) {
-      throw new Error(t.errors.network);
-    }
-
-    // Default error
+    if (msg.includes('429') || msg.includes('quota')) throw new Error(t.errors.quota);
+    if (msg.includes('safety') || msg.includes('blocked')) throw new Error(t.errors.safety);
+    if (msg.includes('network')) throw new Error(t.errors.network);
     throw new Error(t.errors.generic);
   }
 };
@@ -169,15 +154,16 @@ export const getSpecificProductRecommendations = async (
   productType: string,
   userContext: string,
   budget: string,
-  language: Language = 'en'
+  language: Language = 'en',
+  model: ModelType = 'gemini-2.5-flash'
 ): Promise<SpecificProduct[]> => {
   try {
     const langInstruction = language === 'zh' 
-      ? "Ensure all text fields (reason, product_name, usage_frequency, etc) are in Simplified Chinese (简体中文)." 
+      ? "Ensure all text fields are in Simplified Chinese (简体中文)." 
       : "Ensure all text fields are in English.";
 
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: model,
       contents: {
         parts: [
           {
@@ -193,18 +179,12 @@ export const getSpecificProductRecommendations = async (
               - Budget/Accessible ($10-$30): The Ordinary, CeraVe, La Roche-Posay, Neutrogena, Inkey List.
               
               Requirements:
-              1. Provide 3 tiers: 
-                 - Gold (Best Overall/Premium, works best for the profile)
-                 - Silver (Best Value/Mid-range)
-                 - Bronze (Budget-friendly but effective)
-              2. Strict Budget Handling:
-                 - If budget is low (e.g. <$30), prioritize 'Budget/Accessible' brands for all tiers or mix with lower-end Mid-Range.
-                 - If budget is high ($100+), feel free to suggest 'Luxury' or 'Premium' brands for Gold/Silver.
-                 - If budget is mid-range ($50), stick to 'Premium' and 'Mid-Range' brands.
+              1. Provide 3 tiers: Gold (Premium), Silver (Value), Bronze (Budget).
+              2. Strict Budget Handling.
               3. Include estimated price.
               4. Include a Google Search link for the product.
               5. Include key ingredients and usage frequency.
-              6. If you know a valid public image URL for the product, include it. Otherwise, leave image_url empty.
+              6. If you know a valid public image URL, include it.
               7. Return purely JSON.
               8. ${langInstruction}
             `
@@ -220,10 +200,8 @@ export const getSpecificProductRecommendations = async (
     if (!response.text) {
       throw new Error("No response from AI");
     }
-    
     const data = JSON.parse(response.text);
     return data.recommendations || [];
-
   } catch (error) {
     console.error("Gemini Product Rec Error:", error);
     throw new Error("Failed to fetch specific recommendations.");
@@ -233,7 +211,8 @@ export const getSpecificProductRecommendations = async (
 export const getBrandRecommendations = async (
   brand: string,
   userContext: string,
-  language: Language = 'en'
+  language: Language = 'en',
+  model: ModelType = 'gemini-2.5-flash'
 ): Promise<SpecificProduct[]> => {
   try {
     const langInstruction = language === 'zh' 
@@ -241,26 +220,13 @@ export const getBrandRecommendations = async (
       : "Ensure all text fields are in English.";
 
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: model,
       contents: {
         parts: [
           {
             text: `
               Task: Recommend the top 3 best-suited products specifically from the brand "${brand}" for a user with this profile: "${userContext}".
-              
-              Requirements:
-              1. Focus strictly on products from "${brand}".
-              2. Select products that best address the user's specific concerns (e.g. if they have acne, pick the acne line; if aging, pick the anti-aging line).
-              3. Assign tiers based on priority for this user:
-                 - Gold: The "Must Have" hero product for their primary concern.
-                 - Silver: A highly recommended secondary product (e.g. maintenance).
-                 - Bronze: A complementary product or hidden gem.
-              4. Include estimated price.
-              5. Include a Google Search link.
-              6. Include key ingredients.
-              7. Valid image URL if possible.
-              8. ${langInstruction}
-              9. Return purely JSON matching the schema.
+              Requirements: Return purely JSON matching the schema. ${langInstruction}
             `
           }
         ]
@@ -274,10 +240,8 @@ export const getBrandRecommendations = async (
     if (!response.text) {
       throw new Error("No response from AI");
     }
-    
     const data = JSON.parse(response.text);
     return data.recommendations || [];
-
   } catch (error) {
     console.error("Gemini Brand Rec Error:", error);
     throw new Error("Failed to fetch brand recommendations.");
@@ -288,10 +252,10 @@ const concernExplanationSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     concern_name: { type: Type.STRING },
-    what_is_it: { type: Type.STRING, description: "A 1-sentence easy-to-understand definition." },
-    why_it_occurs: { type: Type.STRING, description: "A 1-sentence explanation of the cause." },
-    management_tips: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-4 short, actionable steps (max 5 words each)." },
-    ingredients_to_look_for: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-4 key active ingredients." }
+    what_is_it: { type: Type.STRING },
+    why_it_occurs: { type: Type.STRING },
+    management_tips: { type: Type.ARRAY, items: { type: Type.STRING } },
+    ingredients_to_look_for: { type: Type.ARRAY, items: { type: Type.STRING } }
   },
   required: ["concern_name", "what_is_it", "why_it_occurs", "management_tips", "ingredients_to_look_for"]
 };
@@ -299,33 +263,17 @@ const concernExplanationSchema: Schema = {
 export const getConcernExplanation = async (
   concern: string,
   userContext: string,
-  language: Language = 'en'
+  language: Language = 'en',
+  model: ModelType = 'gemini-2.5-flash'
 ): Promise<ConcernExplanation> => {
   try {
-    const langInstruction = language === 'zh' 
-      ? "Output strictly in Simplified Chinese (简体中文)." 
-      : "Output strictly in English.";
-
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese (简体中文)." : "Output strictly in English.";
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: model,
       contents: {
         parts: [
           {
-            text: `
-              You are a visual design oriented dermatologist.
-              Task: Create content for an infographic explaining: "${concern}" for a user with profile: "${userContext}".
-              
-              Keep text concise, punchy, and easy to read quickly. Avoid long paragraphs.
-              
-              Provide:
-              1. what_is_it: A 1-sentence easy-to-understand definition.
-              2. why_it_occurs: A 1-sentence explanation of the cause.
-              3. management_tips: 3-4 short, actionable steps (max 5-7 words each).
-              4. ingredients_to_look_for: 3-4 key active ingredients.
-              
-              Output JSON only.
-              ${langInstruction}
-            `
+            text: `Create content for an infographic explaining: "${concern}" for profile: "${userContext}". Return JSON only. ${langInstruction}`
           }
         ]
       },
@@ -335,12 +283,8 @@ export const getConcernExplanation = async (
       }
     });
 
-    if (!response.text) {
-      throw new Error("No response from AI");
-    }
-
+    if (!response.text) throw new Error("No response");
     return JSON.parse(response.text) as ConcernExplanation;
-
   } catch (error) {
     console.error("Gemini Concern Explanation Error:", error);
     throw new Error("Failed to fetch concern details.");
@@ -352,12 +296,12 @@ const productSuitabilitySchema: Schema = {
   properties: {
     product_name: { type: Type.STRING },
     brand: { type: Type.STRING },
-    suitability_score: { type: Type.INTEGER, description: "Score from 0 to 100 where 100 is a perfect match." },
+    suitability_score: { type: Type.INTEGER },
     verdict: { type: Type.STRING, enum: ["Excellent Match", "Good", "Fair", "Caution", "Not Recommended"] },
-    reasoning: { type: Type.STRING, description: "Why this fits or doesn't fit the user's skin profile." },
-    ingredients_analysis: { type: Type.STRING, description: "Analysis of visible or known ingredients in the product." },
-    quantity_to_buy: { type: Type.STRING, description: "Recommendation on how many to buy (e.g., '1 to test', 'Stock up', 'None')." },
-    usage_instructions: { type: Type.STRING, description: "Brief instructions on how to use this product for this specific user." }
+    reasoning: { type: Type.STRING },
+    ingredients_analysis: { type: Type.STRING },
+    quantity_to_buy: { type: Type.STRING },
+    usage_instructions: { type: Type.STRING }
   },
   required: ["product_name", "brand", "suitability_score", "verdict", "reasoning", "ingredients_analysis", "quantity_to_buy", "usage_instructions"]
 };
@@ -365,40 +309,18 @@ const productSuitabilitySchema: Schema = {
 export const analyzeProductSuitability = async (
   productImageBase64: string,
   userProfile: string,
-  language: Language = 'en'
+  language: Language = 'en',
+  model: ModelType = 'gemini-2.5-flash'
 ): Promise<ProductSuitability> => {
   try {
     const cleanBase64 = productImageBase64.split(',')[1] || productImageBase64;
-    const langInstruction = language === 'zh' 
-      ? "Output strictly in Simplified Chinese (简体中文)." 
-      : "Output strictly in English.";
-
+    const langInstruction = language === 'zh' ? "Output strictly in Simplified Chinese (简体中文)." : "Output strictly in English.";
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: model,
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: cleanBase64
-            }
-          },
-          {
-            text: `
-              Task: Identify this beauty product from the image (label/packaging).
-              Analyze its suitability for a user with this profile: "${userProfile}".
-              
-              1. Identify the Brand and Product Name.
-              2. Rate suitability (0-100) and give a verdict.
-              3. Explain reasoning based on ingredients vs user profile.
-              4. Highlight key ingredients.
-              5. Recommend QUANTITY TO BUY: Should they buy 1 to test? Is it a daily essential to stock up? Or avoid?
-              6. Provide brief USAGE instructions (AM/PM, order in routine).
-              
-              ${langInstruction}
-              Output purely JSON.
-            `
-          }
+          { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
+          { text: `Identify this product and analyze suitability for profile: "${userProfile}". ${langInstruction} Output purely JSON.` }
         ]
       },
       config: {
@@ -407,12 +329,8 @@ export const analyzeProductSuitability = async (
       }
     });
 
-    if (!response.text) {
-      throw new Error("No response from AI");
-    }
-
+    if (!response.text) throw new Error("No response");
     return JSON.parse(response.text) as ProductSuitability;
-
   } catch (error) {
     console.error("Gemini Product Suitability Error:", error);
     throw new Error("Failed to analyze product.");

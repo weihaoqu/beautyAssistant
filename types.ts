@@ -1,5 +1,6 @@
 
 export type Language = 'en' | 'zh';
+export type ModelType = 'gemini-2.5-flash' | 'gemini-3-flash-preview';
 
 export interface SkinAnalysis {
   skin_type: string;

@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { X, Trophy, Award, Medal, Loader2, DollarSign, ExternalLink, Sparkles, Clock, Beaker, Image as ImageIcon, ShoppingBag, Search, Info, ChevronRight } from 'lucide-react';
-import { ProductRecommendation, SpecificProduct, Language } from '../types';
+import { ProductRecommendation, SpecificProduct, Language, ModelType } from '../types';
 import { getSpecificProductRecommendations } from '../services/geminiService';
 import { getTranslation } from '../utils/translations';
 
@@ -9,6 +10,7 @@ interface ProductDetailModalProps {
   contextSummary: string;
   onClose: () => void;
   language: Language;
+  model: ModelType;
 }
 
 const getTierIcon = (tier: string) => {
@@ -172,7 +174,7 @@ const SpecificProductCard: React.FC<{ item: SpecificProduct; index: number; t: a
   );
 };
 
-export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, contextSummary, onClose, language }) => {
+export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product, contextSummary, onClose, language, model }) => {
   const [view, setView] = useState<'budget' | 'results'>(product ? 'budget' : 'results');
   const [budget, setBudget] = useState('50');
   const [products, setProducts] = useState<SpecificProduct[]>([]);
@@ -194,7 +196,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ product,
         term,
         contextSummary,
         `${budgetVal} USD`,
-        language
+        language,
+        model
       );
       setProducts(recs);
       setHasFetched(true);

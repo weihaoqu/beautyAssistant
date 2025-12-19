@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AnalysisResult, ProductRecommendation, FaceZone, Language } from '../types';
-import { Sparkles, Droplet, Sun, AlertCircle, CheckCircle2, ShoppingBag, ChevronRight, Heart, Leaf, Moon, Utensils, Smile, Activity, ScanLine, Target, Search, Info, Share2, Eye, MapPin, ScanFace, Meh, Frown, Dumbbell, Tag } from 'lucide-react';
+import { AnalysisResult, ProductRecommendation, FaceZone, Language, ModelType } from '../types';
+import { Sparkles, Droplet, Sun, AlertCircle, CheckCircle2, ShoppingBag, ChevronRight, Heart, Leaf, Moon, Utensils, Smile, Activity, ScanLine, Target, Search, Info, Share2, Eye, MapPin, ScanFace, Meh, Frown, Dumbbell, Tag, ShieldAlert } from 'lucide-react';
 import { ProductDetailModal } from './ProductDetailModal';
 import { ConcernDetailModal } from './ConcernDetailModal';
 import { BrandRecommendationModal } from './BrandRecommendationModal';
@@ -12,6 +12,7 @@ interface AnalysisResultsProps {
   userImage: string | null;
   onReset: () => void;
   language: Language;
+  model: ModelType;
   onOpenProductScanner: () => void;
 }
 
@@ -66,44 +67,50 @@ const getZoneIcon = (zoneName: string) => {
   return <Target size={18} className="text-slate-500" />;
 };
 
-const FaceZoneCard: React.FC<{ zone: FaceZone; onClick: () => void }> = ({ zone, onClick }) => {
-  const getSeverityColor = (s: string) => {
-    switch (s) {
-      case 'High': return 'bg-red-100 text-red-700 border-red-200';
-      case 'Medium': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'Low': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      default: return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    }
-  };
+const getSeverityStyles = (s: string) => {
+  switch (s) {
+    case 'High': return 'bg-red-100 text-red-700 border-red-200 ring-red-50';
+    case 'Medium': return 'bg-orange-100 text-orange-700 border-orange-200 ring-orange-50';
+    case 'Low': return 'bg-yellow-100 text-yellow-700 border-yellow-200 ring-yellow-50';
+    default: return 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-emerald-50';
+  }
+};
 
+const FaceZoneCard: React.FC<{ zone: FaceZone; onClick: () => void; isSpecial?: boolean }> = ({ zone, onClick, isSpecial }) => {
   return (
     <div 
       onClick={onClick}
-      className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 shadow-sm cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group"
+      className={`flex items-center justify-between p-3 rounded-xl border transition-all group cursor-pointer ${
+        isSpecial 
+        ? 'bg-gradient-to-r from-indigo-50/50 to-white border-indigo-100 shadow-indigo-100/50 hover:border-indigo-300 hover:shadow-md' 
+        : 'bg-white border-slate-100 shadow-sm hover:shadow-md hover:border-slate-300'
+      }`}
     >
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-white group-hover:border-rose-100 transition-colors">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center border transition-colors ${
+          isSpecial ? 'bg-indigo-50 border-indigo-100 group-hover:bg-white' : 'bg-slate-50 border-slate-100 group-hover:bg-white group-hover:border-rose-100'
+        }`}>
            {getZoneIcon(zone.zone)}
         </div>
         <div className="flex flex-col">
-          <span className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-0.5 flex items-center gap-1">
+          <span className="text-[10px] font-bold uppercase text-slate-400 tracking-widest mb-0.5 flex items-center gap-1">
             {zone.zone}
-            <Info size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400" />
+            {isSpecial && <Sparkles size={10} className="text-indigo-400" />}
           </span>
-          <span className="font-medium text-slate-800">{zone.condition}</span>
+          <span className={`font-semibold text-sm ${isSpecial ? 'text-indigo-900' : 'text-slate-800'}`}>{zone.condition}</span>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`px-2 py-1 rounded-md text-xs font-semibold border ${getSeverityColor(zone.severity)}`}>
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ring-4 ${getSeverityStyles(zone.severity)}`}>
           {zone.severity}
         </span>
-        <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-400 transition-colors" />
+        <ChevronRight size={16} className={`transition-colors ${isSpecial ? 'text-indigo-300 group-hover:text-indigo-500' : 'text-slate-300 group-hover:text-rose-400'}`} />
       </div>
     </div>
   );
 };
 
-export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userImage, onReset, language, onOpenProductScanner }) => {
+export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userImage, onReset, language, model, onOpenProductScanner }) => {
   const [selectedProduct, setSelectedProduct] = useState<ProductRecommendation | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
@@ -117,6 +124,10 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
     Concerns: ${result.skin_analysis.concerns.join(', ')}. 
     Hair: ${result.hair_analysis.hair_type}, ${result.hair_analysis.condition}.
   `;
+
+  // Filter out Eye Area for special display
+  const eyeZone = result.face_map?.find(z => z.zone.toLowerCase().includes('eye'));
+  const otherZones = result.face_map?.filter(z => !z.zone.toLowerCase().includes('eye')) || [];
 
   const getLifestyleStyle = (category: string) => {
     const c = category.toLowerCase();
@@ -143,45 +154,41 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
 
   return (
     <div className="w-full max-w-5xl mx-auto animate-fade-in-up">
-      {/* Product Detail Modal (Populated from Routine) */}
+      {/* Modals remain the same */}
       {selectedProduct && (
         <ProductDetailModal 
           product={selectedProduct} 
           contextSummary={contextSummary}
           onClose={() => setSelectedProduct(null)} 
           language={language}
+          model={model}
         />
       )}
-
-      {/* Product Search Modal (Empty for Custom Search) */}
       {isSearchModalOpen && (
         <ProductDetailModal 
           contextSummary={contextSummary}
           onClose={() => setIsSearchModalOpen(false)} 
           language={language}
+          model={model}
         />
       )}
-
-      {/* Brand Recommendation Modal */}
       {isBrandModalOpen && (
         <BrandRecommendationModal
           contextSummary={contextSummary}
           onClose={() => setIsBrandModalOpen(false)}
           language={language}
+          model={model}
         />
       )}
-
-      {/* Detailed Concern Modal */}
       {selectedConcern && (
         <ConcernDetailModal 
           concern={selectedConcern}
           contextSummary={contextSummary}
           onClose={() => setSelectedConcern(null)}
           language={language}
+          model={model}
         />
       )}
-      
-      {/* Share Modal */}
       {isShareModalOpen && (
         <ShareModal 
           result={result}
@@ -194,8 +201,8 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
       {/* Visual Analysis Section */}
       <div className="mb-8 grid grid-cols-1 md:grid-cols-12 gap-6">
         <div className="md:col-span-5 lg:col-span-4">
-          <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 h-full">
-            <div className="relative rounded-xl overflow-hidden aspect-[3/4] md:aspect-auto md:h-full bg-slate-100 group">
+          <div className="bg-white p-3 rounded-3xl shadow-xl border border-slate-100 h-full">
+            <div className="relative rounded-2xl overflow-hidden aspect-[3/4] md:aspect-auto md:h-full bg-slate-100 group">
               {userImage && (
                 <img 
                   src={userImage} 
@@ -203,9 +210,9 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
                   className="w-full h-full object-cover" 
                 />
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                 <p className="text-white font-medium text-sm flex items-center gap-2">
-                   <ScanLine size={16} /> Image Analyzed
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
+                 <p className="text-white font-bold text-sm flex items-center gap-2">
+                   <ScanLine size={18} /> Detailed Scan Results
                  </p>
               </div>
             </div>
@@ -213,61 +220,84 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         </div>
         
         <div className="md:col-span-7 lg:col-span-8 flex flex-col gap-6">
-           {/* Detailed Face Map */}
-           <div className="glass-panel p-6 rounded-2xl shadow-sm border border-white/50 flex-grow">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-rose-100 rounded-lg text-rose-600">
-                  <Target size={24} />
+           {/* Visual Breakdown (Refined for Eye Area prominence) */}
+           <div className="glass-panel p-6 rounded-3xl shadow-sm border border-white/50 flex-grow">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-100 rounded-xl text-rose-600">
+                    <Target size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800">{t.results.visualBreakdown}</h3>
                 </div>
-                <h3 className="text-xl font-semibold text-slate-800">{t.results.visualBreakdown}</h3>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {result.face_map && result.face_map.length > 0 ? (
-                  result.face_map.map((zone, idx) => (
-                    <FaceZoneCard 
-                      key={idx} 
-                      zone={zone} 
-                      onClick={() => setSelectedConcern(`${zone.condition} (${zone.zone})`)}
-                    />
-                  ))
-                ) : (
-                  <p className="text-slate-500 italic col-span-2">Detailed zone analysis not available.</p>
+                {eyeZone && (
+                  <div className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-indigo-100">
+                    <ShieldAlert size={12} /> Eye Priority
+                  </div>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-4 text-center">{t.results.tapArea}</p>
+              
+              <div className="space-y-4">
+                {/* Dedicated Eye Area Row if exists */}
+                {eyeZone && (
+                  <div className="mb-2">
+                    <FaceZoneCard 
+                      zone={eyeZone} 
+                      isSpecial={true}
+                      onClick={() => setSelectedConcern(`${eyeZone.condition} (${eyeZone.zone})`)}
+                    />
+                  </div>
+                )}
+
+                {/* Other Zones Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {otherZones.length > 0 ? (
+                    otherZones.map((zone, idx) => (
+                      <FaceZoneCard 
+                        key={idx} 
+                        zone={zone} 
+                        onClick={() => setSelectedConcern(`${zone.condition} (${zone.zone})`)}
+                      />
+                    ))
+                  ) : !eyeZone && (
+                    <p className="text-slate-500 italic col-span-2 text-center py-4">Detailed zone analysis not available.</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-6 text-center flex items-center justify-center gap-2">
+                <Info size={12} /> {t.results.tapArea}
+              </p>
            </div>
 
            {/* Quick Stats Grid */}
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div 
                 onClick={() => setSelectedConcern(`${result.skin_analysis.skin_type} Skin Type`)}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-rose-400 cursor-pointer hover:shadow-md transition-all group relative"
+                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-rose-400 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all group relative"
               >
-                <div className="absolute top-5 right-5 text-slate-300 group-hover:text-rose-400 transition-colors">
+                <div className="absolute top-5 right-5 text-slate-200 group-hover:text-rose-400 transition-colors">
                   <ChevronRight size={20} />
                 </div>
                 <div className="flex items-center gap-2 mb-2 text-rose-600">
                   <Sparkles size={18} />
-                  <span className="font-bold text-sm uppercase">{t.results.skinType}</span>
+                  <span className="font-bold text-[10px] uppercase tracking-widest">{t.results.skinType}</span>
                 </div>
-                <p className="text-lg font-semibold text-slate-800">{result.skin_analysis.skin_type}</p>
-                <p className="text-sm text-slate-500 mt-1">{result.skin_analysis.skin_tone}</p>
+                <p className="text-lg font-bold text-slate-800">{result.skin_analysis.skin_type}</p>
+                <p className="text-xs text-slate-400 mt-1 font-medium">{result.skin_analysis.skin_tone}</p>
               </div>
               
               <div 
                 onClick={() => setSelectedConcern(`${result.hair_analysis.condition} Hair`)}
-                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-indigo-400 cursor-pointer hover:shadow-md transition-all group relative"
+                className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-indigo-400 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all group relative"
               >
-                <div className="absolute top-5 right-5 text-slate-300 group-hover:text-indigo-400 transition-colors">
+                <div className="absolute top-5 right-5 text-slate-200 group-hover:text-indigo-400 transition-colors">
                   <ChevronRight size={20} />
                 </div>
                 <div className="flex items-center gap-2 mb-2 text-indigo-600">
                   <Droplet size={18} />
-                  <span className="font-bold text-sm uppercase">{t.results.hairHealth}</span>
+                  <span className="font-bold text-[10px] uppercase tracking-widest">{t.results.hairHealth}</span>
                 </div>
-                <p className="text-lg font-semibold text-slate-800">{result.hair_analysis.condition}</p>
-                <p className="text-sm text-slate-500 mt-1">{result.hair_analysis.hair_type}</p>
+                <p className="text-lg font-bold text-slate-800">{result.hair_analysis.condition}</p>
+                <p className="text-xs text-slate-400 mt-1 font-medium">{result.hair_analysis.hair_type}</p>
               </div>
            </div>
         </div>
@@ -275,44 +305,43 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Skin Detailed Profile */}
-        <div className="glass-panel p-6 rounded-2xl border-t-4 border-rose-400 shadow-sm lg:col-span-2">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-lg font-semibold text-slate-800">{t.results.detailedObservations}</h3>
+        <div className="glass-panel p-6 rounded-3xl border-t-4 border-rose-400 shadow-sm lg:col-span-2">
+          <div className="flex justify-between items-start mb-6">
+            <h3 className="text-lg font-bold text-slate-800">{t.results.detailedObservations}</h3>
             <button 
               onClick={() => setIsShareModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-sm font-medium hover:bg-rose-100 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-all active:scale-95 shadow-sm"
             >
               <Share2 size={16} />
               {t.share.button}
             </button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-6">
              <div>
-                <p className="text-sm text-slate-500 mb-3 font-medium">{t.results.concernsIdentified}</p>
-                {/* Refactored Concerns Display: Interactive Cards */}
+                <p className="text-xs text-slate-400 mb-4 font-bold uppercase tracking-widest">{t.results.concernsIdentified}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {result.skin_analysis.concerns.map((c, i) => (
                     <button 
                       key={i} 
                       onClick={() => setSelectedConcern(c)}
-                      className="flex items-center justify-between p-3 bg-white rounded-xl border border-rose-100 shadow-sm hover:shadow-md hover:border-rose-300 hover:-translate-y-0.5 transition-all group text-left"
+                      className="flex items-center justify-between p-3 bg-white rounded-2xl border border-rose-50 shadow-sm hover:shadow-md hover:border-rose-300 hover:-translate-y-0.5 transition-all group text-left"
                     >
                       <div className="flex items-center gap-2.5 overflow-hidden">
                         <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 shrink-0 group-hover:bg-rose-500 group-hover:text-white transition-colors">
                           <AlertCircle size={16} />
                         </div>
-                        <span className="font-semibold text-slate-700 text-sm truncate group-hover:text-rose-600 transition-colors">{c}</span>
+                        <span className="font-bold text-slate-700 text-xs truncate group-hover:text-rose-600 transition-colors">{c}</span>
                       </div>
-                      <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-400 transition-colors shrink-0" />
+                      <ChevronRight size={14} className="text-slate-200 group-hover:text-rose-400 transition-colors shrink-0" />
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-slate-400 mt-2 text-right">{t.results.tapConcern}</p>
+                <p className="text-[10px] text-slate-400 mt-3 text-right">{t.results.tapConcern}</p>
              </div>
              
-             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <p className="text-sm font-semibold text-slate-500 mb-1 uppercase tracking-wide">{t.results.analysisSummary}</p>
-                <p className="text-slate-700 leading-relaxed italic">
+             <div className="bg-slate-50/80 backdrop-blur-sm p-5 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">{t.results.analysisSummary}</p>
+                <p className="text-slate-700 leading-relaxed italic text-sm font-medium">
                   "{result.skin_analysis.summary}"
                 </p>
              </div>
@@ -320,17 +349,17 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         </div>
 
         {/* Summary Card */}
-        <div className="glass-panel p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm bg-gradient-to-b from-white to-teal-50/30">
-          <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 mb-4 shadow-sm">
-            <CheckCircle2 size={32} />
+        <div className="glass-panel p-6 rounded-3xl flex flex-col justify-center items-center text-center shadow-sm bg-gradient-to-b from-white to-teal-50/30">
+          <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-inner ring-8 ring-emerald-50/50">
+            <CheckCircle2 size={40} />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">{t.results.analysisComplete}</h3>
-          <p className="text-sm text-slate-500 mb-6 px-4">
+          <h3 className="text-xl font-bold text-slate-800 mb-3">{t.results.analysisComplete}</h3>
+          <p className="text-xs text-slate-500 mb-8 px-4 leading-relaxed font-medium">
             {t.results.completeDesc}
           </p>
           <button 
             onClick={onReset}
-            className="text-sm font-semibold text-rose-500 hover:text-rose-600 py-2 px-4 rounded-full bg-rose-50 hover:bg-rose-100 transition-all"
+            className="text-xs font-bold text-rose-500 hover:text-white py-3 px-8 rounded-full bg-rose-50 hover:bg-rose-500 transition-all shadow-sm active:scale-95"
           >
             {t.results.startNew}
           </button>
@@ -339,26 +368,26 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
 
       {/* Healthy Life Suggestions */}
       {result.lifestyle_suggestions && result.lifestyle_suggestions.length > 0 && (
-        <div className="mb-10 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-2xl p-6 border border-teal-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-             <div className="p-2 bg-teal-100 rounded-lg text-teal-700">
+        <div className="mb-10 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-6 border border-teal-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+             <div className="p-2.5 bg-white rounded-xl text-teal-600 shadow-sm">
                <Heart size={24} />
              </div>
-             <h3 className="text-xl font-semibold text-slate-800">{t.results.healthyLife}</h3>
+             <h3 className="text-xl font-bold text-slate-800">{t.results.healthyLife}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
              {result.lifestyle_suggestions.map((item, idx) => {
                 const style = getLifestyleStyle(item.category);
                 return (
-                <div key={idx} className="bg-white/70 p-4 rounded-xl border border-teal-50/50 shadow-sm flex flex-col gap-2 hover:shadow-md transition-shadow">
-                   <div className="flex items-center gap-2 mb-1">
-                      <div className={`p-2 rounded-full shadow-sm ${style.bg} ${style.color}`}>
+                <div key={idx} className="bg-white/80 backdrop-blur-md p-5 rounded-2xl border border-white shadow-sm flex flex-col gap-2 hover:shadow-lg transition-all hover:-translate-y-1">
+                   <div className="flex items-center gap-2 mb-2">
+                      <div className={`p-2 rounded-lg shadow-sm ${style.bg} ${style.color}`}>
                         {style.icon}
                       </div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.category}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.category}</span>
                    </div>
-                   <h4 className="font-semibold text-slate-800 leading-tight">{item.title}</h4>
-                   <p className="text-sm text-slate-600 leading-relaxed">{item.details}</p>
+                   <h4 className="font-bold text-slate-800 text-sm">{item.title}</h4>
+                   <p className="text-xs text-slate-600 leading-relaxed font-medium">{item.details}</p>
                 </div>
                 );
              })}
@@ -366,37 +395,44 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         </div>
       )}
 
+      {/* Personalised Routine Section */}
       <div className="mb-10">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <ShoppingBag className="text-slate-400" />
-            <h2 className="text-2xl font-bold text-slate-800">{t.results.personalizedRoutine}</h2>
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-800 text-white rounded-2xl shadow-lg">
+              <ShoppingBag size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">{t.results.personalizedRoutine}</h2>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Recommended for your {result.skin_analysis.skin_type} skin</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button 
               onClick={onOpenProductScanner}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center"
+              className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-900 transition-all shadow-lg active:scale-95 flex-grow sm:flex-grow-0 justify-center"
             >
               <ScanLine size={16} />
               {t.results.checkProduct}
             </button>
             <button 
               onClick={() => setIsBrandModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-50 border border-rose-100 text-rose-600 text-sm font-medium rounded-lg hover:bg-rose-100 hover:border-rose-200 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center"
+              className="flex items-center gap-2 px-6 py-3 bg-rose-50 border border-rose-100 text-rose-600 text-xs font-bold rounded-xl hover:bg-rose-100 hover:border-rose-200 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center active:scale-95"
             >
               <Tag size={16} />
               {t.brandPicks.button}
             </button>
             <button 
               onClick={() => setIsSearchModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center"
+              className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm flex-grow sm:flex-grow-0 justify-center active:scale-95"
             >
               <Search size={16} />
               {t.results.findProduct}
             </button>
           </div>
         </div>
-        <p className="text-sm text-slate-500 mb-6 -mt-4 xl:-mt-2 xl:ml-9">
+        
+        <p className="text-xs text-slate-500 mb-8 font-medium leading-relaxed italic bg-white/50 inline-block px-4 py-2 rounded-full border border-slate-100">
           {t.results.routineDesc}
         </p>
         
@@ -412,9 +448,9 @@ export const AnalysisResults: React.FC<AnalysisResultsProps> = ({ result, userIm
         </div>
       </div>
 
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-        <div className="text-xs text-yellow-800">
+      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-4 shadow-sm mb-4">
+        <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" />
+        <div className="text-[10px] text-amber-800 leading-relaxed font-medium">
           <strong>{t.results.disclaimer}</strong>
         </div>
       </div>

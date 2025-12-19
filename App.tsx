@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Sparkles, ScanFace, Download, History as HistoryIcon, Globe, TrendingUp, ScanLine } from 'lucide-react';
+import { Sparkles, ScanFace, Download, History as HistoryIcon, Globe, TrendingUp, ScanLine, Cpu, Terminal } from 'lucide-react';
 import { ImageUploader } from './components/ImageUploader';
 import { AnalysisResults } from './components/AnalysisResults';
 import { InstallPwaModal } from './components/InstallPwaModal';
@@ -7,9 +8,10 @@ import { HistoryModal } from './components/HistoryModal';
 import { ProgressTracker } from './components/ProgressTracker';
 import { LanguageSelector } from './components/LanguageSelector';
 import { ProductScannerModal } from './components/ProductScannerModal';
+import { PromptModal } from './components/PromptModal';
 import { analyzeImage } from './services/geminiService';
 import { saveScan, getHistory } from './services/storageService';
-import { AnalysisResult, StoredScan, Language } from './types';
+import { AnalysisResult, StoredScan, Language, ModelType } from './types';
 import { getTranslation } from './utils/translations';
 
 const App: React.FC = () => {
@@ -17,6 +19,12 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('glowai_lang');
     return (saved === 'en' || saved === 'zh') ? saved : 'en';
+  });
+
+  // Initialize model from localStorage or default
+  const [model, setModel] = useState<ModelType>(() => {
+    const saved = localStorage.getItem('glowai_model');
+    return (saved === 'gemini-2.5-flash' || saved === 'gemini-3-flash-preview') ? saved : 'gemini-2.5-flash';
   });
 
   // Determine if the user has explicitly selected a language before
@@ -38,6 +46,7 @@ const App: React.FC = () => {
   // Modals & Features State
   const [showHistory, setShowHistory] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   const [isProductScannerOpen, setIsProductScannerOpen] = useState(false);
 
   // Context for Scanner
@@ -94,7 +103,7 @@ const App: React.FC = () => {
     setError(null);
     setUserImage(base64);
     try {
-      const analysisData = await analyzeImage(base64, language);
+      const analysisData = await analyzeImage(base64, language, model);
       setResult(analysisData);
       
       // Auto-save to history
@@ -129,6 +138,12 @@ const App: React.FC = () => {
     localStorage.setItem('glowai_lang', newLang);
   };
 
+  const toggleModel = () => {
+    const newModel = model === 'gemini-2.5-flash' ? 'gemini-3-flash-preview' : 'gemini-2.5-flash';
+    setModel(newModel);
+    localStorage.setItem('glowai_model', newModel);
+  };
+
   const handleInitialLanguageSelect = (lang: Language) => {
     setLanguage(lang);
     setHasSelectedLanguage(true);
@@ -140,7 +155,6 @@ const App: React.FC = () => {
   }
 
   // Determine current context for scanner
-  // Priority: 1. Current active result (most fresh) 2. Latest history (stored) 3. Generic fallback
   const currentContext = result 
     ? `Skin Type: ${result.skin_analysis.skin_type}, Concerns: ${result.skin_analysis.concerns.join(', ')}.`
     : (latestProfile || "General Skin Analysis - No specific user profile loaded.");
@@ -150,11 +164,13 @@ const App: React.FC = () => {
       {showInstallModal && <InstallPwaModal onClose={() => setShowInstallModal(false)} isIOS={isIOS} language={language} />}
       {showHistory && <HistoryModal onClose={() => setShowHistory(false)} onLoadScan={handleLoadScan} language={language} />}
       {showProgress && <ProgressTracker onClose={() => setShowProgress(false)} language={language} />}
+      {showPromptModal && <PromptModal onClose={() => setShowPromptModal(false)} language={language} />}
       {isProductScannerOpen && (
         <ProductScannerModal 
           userProfileSummary={currentContext}
           onClose={() => setIsProductScannerOpen(false)}
           language={language}
+          model={model}
         />
       )}
       
@@ -167,6 +183,25 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2 md:gap-3">
+             {/* New View Prompt Button */}
+             <button
+              onClick={() => setShowPromptModal(true)}
+              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
+              title={t.viewPrompt}
+            >
+              <Terminal size={20} />
+              <span className="hidden lg:inline text-xs font-mono font-bold uppercase tracking-widest">{t.viewPrompt}</span>
+            </button>
+
+             <button
+              onClick={toggleModel}
+              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
+              title="Switch Model"
+            >
+              <Cpu size={20} />
+              <span className="hidden md:inline text-xs font-mono font-medium">{model === 'gemini-2.5-flash' ? 'v2.5' : 'v3.0'}</span>
+            </button>
+
              <button
               onClick={toggleLanguage}
               className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
@@ -292,6 +327,7 @@ const App: React.FC = () => {
              userImage={userImage} 
              onReset={handleReset} 
              language={language} 
+             model={model}
              onOpenProductScanner={() => setIsProductScannerOpen(true)}
           />
         )}
